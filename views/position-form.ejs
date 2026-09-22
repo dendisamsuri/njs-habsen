@@ -1,0 +1,82 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input, .field select {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    transition: background .15s, border-color .15s;
+  }
+  .field input::placeholder { color: var(--faint); }
+  .field input:hover, .field select:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus { background: #fff; border-color: var(--brand-2); }
+  .seg { display: flex; gap: .5rem; }
+  .seg-opt {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
+    font-size: .85rem; font-weight: 600; color: #334155;
+    transition: background .15s, border-color .15s;
+  }
+  .seg-opt:hover { border-color: var(--line); }
+  .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+</style>
+<div class="page-head">
+  <div><h1><%= row && row.id ? t('edit') : t('add') %> — <%= t('nav_positions') %></h1></div>
+  <div class="page-actions"><a class="btn" href="/ui/positions">← <%= t('back') %></a></div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card card-pad" style="max-width:640px;">
+  <form method="post" action="<%= row && row.id ? '/ui/positions/' + row.id : '/ui/positions' %>">
+    <div class="form-sec"><%= t('section_identity') %></div>
+    <div class="form-grid">
+      <% if (typeof companies !== 'undefined' && companies) { %>
+      <div class="field full"><%= t('company_label') %>
+        <select name="companyId" required>
+          <% companies.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <% } %>
+      <div class="field full"><%= t('name') %>
+        <input name="name" required maxlength="120" value="<%= row && row.name ? row.name : '' %>" />
+      </div>
+      <div class="field full"><%= t('code') %>
+        <input name="code" maxlength="30" value="<%= row && row.code ? row.code : '' %>" placeholder="<%= t('code_ph') %>" />
+        <div class="help"><%= t('code_help') %></div>
+      </div>
+    </div>
+
+    <div class="form-sec blocked"><%= t('active_label') %></div>
+    <div class="seg">
+      <label class="seg-opt <%= !row || row.status !== 'N' ? 'on' : '' %>">
+        <input type="radio" name="status" value="Y" <%= !row || row.status !== 'N' ? 'checked' : '' %> /><%= t('yes') %>
+      </label>
+      <label class="seg-opt <%= row && row.status === 'N' ? 'on' : '' %>">
+        <input type="radio" name="status" value="N" <%= row && row.status === 'N' ? 'checked' : '' %> /><%= t('no') %>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><%= t('save') %></button>
+      <a class="btn" href="/ui/positions"><%= t('cancel') %></a>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+  document.querySelectorAll('input[name="status"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.querySelectorAll('.seg-opt').forEach(function (l) {
+        l.classList.toggle('on', l.querySelector('input').checked);
+      });
+    });
+  });
+})();
+</script>
+<%- include('partials/footer') %>

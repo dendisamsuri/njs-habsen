@@ -1,10 +1,19 @@
 <%- include('partials/header') %>
-<div class="page-head"><div><h1><%= t('nav_schedules') %></h1><p class="sub"><%= rows.length %> jadwal</p></div></div>
+<%
+  const on = rows.filter(function(r){ return r.is_active; }).length;
+%>
+<div class="page-head">
+  <div><h1><%= t('nav_schedules') %></h1><p class="sub"><%= on %> aktif · <%= rows.length %> total</p></div>
+  <div class="page-actions">
+    <% if (canEdit) { %><a class="btn primary" href="/ui/schedules/new"><%= t('add') %></a><% } %>
+  </div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
 <div class="card">
   <div class="table-toolbar"><b>Daftar jadwal</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_schedules') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th><th><%= t('active') %></th><th>Details</th></tr></thead>
+    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th><th><%= t('active') %></th><th>Details</th><% if (canEdit) { %><th style="text-align:center;"><%= t('actions') %></th><% } %></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
         <tr>
@@ -17,6 +26,15 @@
               <div style="font-size:.78rem;"><span class="badge gray" style="min-width:52px;justify-content:center;"><%= d.day %></span> <span class="mono"><%= d.time_in %>–<%= d.time_out %></span> <span style="color:var(--muted);">±<%= d.tolerance %>m</span></div>
             <% }) %>
           </td>
+          <% if (canEdit) { %>
+          <td style="text-align:center;">
+            <div class="row-actions">
+              <a class="btn" href="/ui/schedules/<%= r.id %>/edit"><%= t('edit') %></a>
+              <form method="post" action="/ui/schedules/<%= r.id %>/toggle" style="display:inline"><button type="submit"><%= t('toggle') %></button></form>
+              <form method="post" action="/ui/schedules/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('confirm_delete') %>')"><button type="submit" class="danger"><%= t('delete') %></button></form>
+            </div>
+          </td>
+          <% } %>
         </tr>
       <% }) %>
     </tbody>

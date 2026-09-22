@@ -1,0 +1,150 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input, .field select {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    transition: background .15s, border-color .15s;
+  }
+  .field input::placeholder { color: var(--faint); }
+  .field input:hover, .field select:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus { background: #fff; border-color: var(--brand-2); }
+  .seg { display: flex; gap: .5rem; }
+  .seg-opt {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
+    font-size: .85rem; font-weight: 600; color: #334155;
+    transition: background .15s, border-color .15s;
+  }
+  .seg-opt:hover { border-color: var(--line); }
+  .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+  .day-row {
+    display: grid; grid-template-columns: 1.1fr .9fr .9fr .8fr; gap: .7rem;
+    align-items: center; padding: .55rem .7rem;
+    border: 1px solid var(--line-soft); border-radius: 10px; margin-bottom: .5rem;
+  }
+  .day-row.off { opacity: .6; }
+  .day-row label.day-name {
+    display: flex; align-items: center; gap: .55rem;
+    font-size: .85rem; font-weight: 650; cursor: pointer;
+  }
+  .day-row input[type="checkbox"] { accent-color: var(--brand); width: 16px; height: 16px; }
+  .day-row input[type="time"] {
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 9px;
+    padding: .45rem .6rem; min-height: 36px; font-size: .85rem; width: 100%;
+  }
+  .day-row input[type="number"] {
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 9px;
+    padding: .45rem .6rem; min-height: 36px; font-size: .85rem; width: 100%;
+  }
+  .day-row input:disabled { opacity: .5; }
+  .day-head {
+    display: grid; grid-template-columns: 1.1fr .9fr .9fr .8fr; gap: .7rem;
+    padding: 0 .7rem .45rem;
+    font-size: .7rem; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  @media (max-width: 640px) {
+    .day-row, .day-head { grid-template-columns: 1fr 1fr; }
+    .day-head span:first-child { grid-column: 1 / -1; }
+  }
+</style>
+<div class="page-head">
+  <div><h1><%= row && row.id ? t('edit') : t('add') %> — <%= t('nav_schedules') %></h1></div>
+  <div class="page-actions"><a class="btn" href="/ui/schedules">← <%= t('back') %></a></div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card card-pad" style="max-width:720px;">
+  <form method="post" action="<%= row && row.id ? '/ui/schedules/' + row.id : '/ui/schedules' %>">
+    <div class="form-sec"><%= t('section_identity') %></div>
+    <div class="form-grid">
+      <% if (typeof companies !== 'undefined' && companies) { %>
+      <div class="field full"><%= t('company_label') %>
+        <select name="companyId" required>
+          <% companies.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <% } %>
+      <div class="field full"><%= t('name') %>
+        <input name="name" required maxlength="120" value="<%= row && row.name ? row.name : '' %>" />
+      </div>
+      <div class="field full"><%= t('code') %>
+        <input name="code" maxlength="30" value="<%= row && row.code ? row.code : '' %>" placeholder="<%= t('code_ph') %>" />
+        <div class="help"><%= t('code_help') %></div>
+      </div>
+    </div>
+
+    <div class="form-sec blocked"><%= t('active_label') %></div>
+    <div class="seg">
+      <label class="seg-opt <%= !row || row.status !== 'N' ? 'on' : '' %>">
+        <input type="radio" name="status" value="Y" <%= !row || row.status !== 'N' ? 'checked' : '' %> /><%= t('yes') %>
+      </label>
+      <label class="seg-opt <%= row && row.status === 'N' ? 'on' : '' %>">
+        <input type="radio" name="status" value="N" <%= row && row.status === 'N' ? 'checked' : '' %> /><%= t('no') %>
+      </label>
+    </div>
+
+    <div class="form-sec blocked"><%= t('schedule_details') %></div>
+    <div class="help" style="margin-bottom:.8rem;"><%= t('schedule_details_help') %></div>
+    <div class="day-head">
+      <span><%= t('day_monday') %></span>
+      <span><%= t('time_in') %></span>
+      <span><%= t('time_out') %></span>
+      <span><%= t('tolerance') %></span>
+    </div>
+    <%
+      var dmap = {};
+      (row && row.details ? row.details : []).forEach(function(d){ dmap[d.day] = d; });
+    %>
+    <% days.forEach(function(day) { %>
+      <%
+        var d = dmap[day] || { day: day, time_in: '08:00', time_out: '17:00', tolerance: 0, is_active: false };
+      %>
+      <div class="day-row <%= d.is_active ? '' : 'off' %>" data-day="<%= day %>">
+        <label class="day-name">
+          <input type="checkbox" name="on_<%= day %>" value="Y" <%= d.is_active ? 'checked' : '' %> />
+          <%= t('day_' + day.toLowerCase()) %>
+        </label>
+        <input type="time" name="in_<%= day %>" value="<%= d.time_in %>" <%= d.is_active ? '' : 'disabled' %> />
+        <input type="time" name="out_<%= day %>" value="<%= d.time_out %>" <%= d.is_active ? '' : 'disabled' %> />
+        <input type="number" name="tol_<%= day %>" min="0" max="600" step="1" value="<%= d.tolerance %>" <%= d.is_active ? '' : 'disabled' %> />
+      </div>
+    <% }) %>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><%= t('save') %></button>
+      <a class="btn" href="/ui/schedules"><%= t('cancel') %></a>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+  function syncRow(row) {
+    var on = row.querySelector('input[type="checkbox"]').checked;
+    row.classList.toggle('off', !on);
+    row.querySelectorAll('input[type="time"], input[type="number"]').forEach(function (i) {
+      i.disabled = !on;
+    });
+  }
+  document.querySelectorAll('.day-row').forEach(function (row) {
+    row.querySelector('input[type="checkbox"]').addEventListener('change', function () { syncRow(row); });
+    syncRow(row);
+  });
+  document.querySelectorAll('input[name="status"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.querySelectorAll('.seg-opt').forEach(function (l) {
+        l.classList.toggle('on', l.querySelector('input').checked);
+      });
+    });
+  });
+})();
+</script>
+<%- include('partials/footer') %>

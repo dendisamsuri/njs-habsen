@@ -20,6 +20,9 @@ import { err } from '../common/exceptions';
 
 const COOKIE = 'absensi_token';
 const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,29}$/;
+const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+const SCHEDULE_DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
+const WORKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 const NAV = [
   { href: '/ui/dashboard', key: 'nav_dashboard' },
   { href: '/ui/reports', key: 'nav_reports' },
@@ -28,6 +31,7 @@ const NAV = [
   { href: '/ui/users', key: 'nav_users' },
   { href: '/ui/locations', key: 'nav_locations' },
   { href: '/ui/schedules', key: 'nav_schedules' },
+  { href: '/ui/positions', key: 'nav_positions' },
   { href: '/ui/leave-types', key: 'nav_leave_types' },
   { href: '/ui/holidays', key: 'nav_holidays' },
   { href: '/ui/process-logs', key: 'nav_process_logs' },
@@ -43,7 +47,8 @@ function tr(key: string, locale: string): string {
     nav_leaves: { id: 'Cuti', en: 'Leaves' },
     nav_users: { id: 'Karyawan', en: 'Employees' },
     nav_locations: { id: 'Lokasi', en: 'Locations' },
-    nav_schedules: { id: 'Jadwal', en: 'Schedules' },
+    nav_schedules: { id: 'Jadwal Kerja', en: 'Work Schedules' },
+    nav_positions: { id: 'Posisi', en: 'Positions' },
     nav_leave_types: { id: 'Tipe Cuti', en: 'Leave Types' },
     nav_holidays: { id: 'Libur', en: 'Holidays' },
     nav_process_logs: { id: 'Process Log', en: 'Process Log' },
@@ -178,6 +183,36 @@ function tr(key: string, locale: string): string {
     empty_schedules: { id: 'Belum ada jadwal kerja terdaftar.', en: 'No work schedules registered.' },
     empty_holidays: { id: 'Belum ada hari libur terdaftar.', en: 'No holidays registered.' },
     empty_leave_types: { id: 'Belum ada tipe cuti.', en: 'No leave types yet.' },
+    empty_positions: {
+      id: 'Belum ada posisi. Tambah posisi untuk jabatan karyawan.',
+      en: 'No positions yet. Add a position for employee job titles.',
+    },
+    tolerance: { id: 'Toleransi (menit)', en: 'Tolerance (min)' },
+    schedule_details: { id: 'Jam kerja per hari', en: 'Working hours per day' },
+    schedule_details_help: {
+      id: 'Centang hari kerja lalu isi jam masuk, jam pulang, dan toleransi keterlambatan.',
+      en: 'Check a working day, then fill time in, time out, and late tolerance.',
+    },
+    day_monday: { id: 'Senin', en: 'Monday' },
+    day_tuesday: { id: 'Selasa', en: 'Tuesday' },
+    day_wednesday: { id: 'Rabu', en: 'Wednesday' },
+    day_thursday: { id: 'Kamis', en: 'Thursday' },
+    day_friday: { id: 'Jumat', en: 'Friday' },
+    day_saturday: { id: 'Sabtu', en: 'Saturday' },
+    day_sunday: { id: 'Minggu', en: 'Sunday' },
+    err_name_required: { id: 'Nama tidak boleh kosong', en: 'Name is required' },
+    err_name_too_long: { id: 'Nama maksimal 120 karakter', en: 'Name must be at most 120 characters' },
+    err_code_invalid: {
+      id: 'Kode wajib 2–30 karakter: huruf, angka, titik, strip, underscore',
+      en: 'Code must be 2–30 chars: letters, numbers, dot, dash, underscore',
+    },
+    err_name_exists: { id: 'Kode sudah dipakai di perusahaan ini', en: 'Code already used in this company' },
+    err_company_required: { id: 'Pilih perusahaan terlebih dahulu', en: 'Select a company first' },
+    err_in_use: { id: 'Data masih dipakai karyawan atau absensi', en: 'Record is still used by employees or attendance' },
+    err_time_invalid: { id: 'Jam harus format HH:MM', en: 'Time must be in HH:MM format' },
+    err_tolerance_invalid: { id: 'Toleransi harus 0–600 menit', en: 'Tolerance must be 0–600 minutes' },
+    err_detail_required: { id: 'Aktifkan minimal satu hari kerja', en: 'Enable at least one working day' },
+    err_save_failed: { id: 'Data tidak berhasil disimpan', en: 'Failed to save record' },
   };
   const entry = map[key];
   if (!entry) return key;
@@ -1048,6 +1083,8 @@ export class ViewController {
     return res.render('schedules', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? tr(String(req.query.error), locale) : null,
+      canEdit: user.role !== 'SUPERVISOR',
       rows: rows.map((s) => ({
         id: s.id,
         code: s.code,
@@ -1057,13 +1094,503 @@ export class ViewController {
         detail_count: s.details.length,
         details: s.details.map((d) => ({
           day: d.dayOfWeek,
-          time_in: d.timeIn,
-          time_out: d.timeOut,
+          time_in: d.timeIn.slice(0, 5),
+          time_out: d.timeOut.slice(0, 5),
           tolerance: d.toleranceMinutes,
         })),
       })),
       page: 'schedules',
     });
+  }
+
+  private requireMdEdit(user: any, res: Response, back: string): boolean {
+    if (user.role === 'SUPERVISOR') {
+      res.redirect(back);
+      return false;
+    }
+    return true;
+  }
+
+  private async mdCompanyId(user: any, body: any): Promise<number | null> {
+    if (user.companyId != null) return user.companyId;
+    const picked = Number(body?.companyId);
+    if (Number.isInteger(picked) && picked > 0 && (await this.prisma.company.findUnique({ where: { id: picked } }))) {
+      return picked;
+    }
+    return null;
+  }
+
+  private mdFormError(code: string, locale: string): string {
+    const map: Record<string, string> = {
+      err_name_required: 'err_name_required',
+      err_name_too_long: 'err_name_too_long',
+      err_code_invalid: 'err_code_invalid',
+      err_name_exists: 'err_name_exists',
+      err_company_required: 'err_company_required',
+      err_in_use: 'err_in_use',
+      err_time_invalid: 'err_time_invalid',
+      err_tolerance_invalid: 'err_tolerance_invalid',
+      err_detail_required: 'err_detail_required',
+    };
+    return tr(map[code] ?? 'err_save_failed', locale);
+  }
+
+  private deriveCode(name: string): string {
+    return name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 30);
+  }
+
+  private parseCodeNameForm(body: any): { code: string; name: string; isActive: boolean } {
+    const name = String(body?.name ?? '').trim();
+    if (!name) throw new Error('err_name_required');
+    if (name.length > 120) throw new Error('err_name_too_long');
+    let code = String(body?.code ?? '').trim().toUpperCase();
+    if (!code) code = this.deriveCode(name);
+    if (!CODE_RE.test(code)) throw new Error('err_code_invalid');
+    return { code, name, isActive: body?.status !== 'N' };
+  }
+
+  // positions admin UI — API CRUD lives in masterdata.controller
+
+  @Get('positions')
+  async positionsPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    const locale = this.locale(req);
+    const rows = await this.prisma.position.findMany({
+      where: this.tenantWhere(user),
+      include: { company: { select: { name: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return res.render('positions', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? this.mdFormError(String(req.query.error), locale) : null,
+      canEdit: user.role !== 'SUPERVISOR',
+      rows: rows.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        company: p.company?.name ?? '-',
+        is_active: p.isActive,
+      })),
+      page: 'positions',
+    });
+  }
+
+  private async renderPositionForm(
+    res: Response,
+    user: any,
+    locale: string,
+    row: any,
+    error: string | null = null,
+    status = 200,
+  ) {
+    return res.status(status).render('position-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: error ? this.mdFormError(error, locale) : null,
+      row,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: row?.companyId ?? user.companyId,
+      page: 'positions',
+    });
+  }
+
+  @Get('positions/new')
+  async positionNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    return this.renderPositionForm(res, user, this.locale(req), null);
+  }
+
+  @Get('positions/:id/edit')
+  async positionEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.position.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!row) return res.redirect('/ui/positions');
+    return this.renderPositionForm(res, user, this.locale(req), {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      status: row.isActive ? 'Y' : 'N',
+      companyId: row.companyId,
+    });
+  }
+
+  @Post('positions')
+  @HttpCode(302)
+  async positionCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    let v: ReturnType<ViewController['parseCodeNameForm']>;
+    try {
+      v = this.parseCodeNameForm(body);
+    } catch (e: any) {
+      return this.renderPositionForm(
+        res,
+        user,
+        this.locale(req),
+        { id: null, code: body?.code ?? '', name: body?.name ?? '', status: body?.status === 'N' ? 'N' : 'Y', companyId: user.companyId },
+        e?.message,
+        400,
+      );
+    }
+    const companyId = await this.mdCompanyId(user, body);
+    if (companyId == null) {
+      return this.renderPositionForm(
+        res,
+        user,
+        this.locale(req),
+        { id: null, code: v.code, name: v.name, status: v.isActive ? 'Y' : 'N', companyId: null },
+        'err_company_required',
+        400,
+      );
+    }
+    const dup = await this.prisma.position.findFirst({ where: { companyId, code: v.code } });
+    if (dup) {
+      return this.renderPositionForm(
+        res,
+        user,
+        this.locale(req),
+        { id: null, code: v.code, name: v.name, status: v.isActive ? 'Y' : 'N', companyId },
+        'err_name_exists',
+        400,
+      );
+    }
+    await this.prisma.position.create({
+      data: { companyId, code: v.code, name: v.name, isActive: v.isActive },
+    });
+    return res.redirect('/ui/positions');
+  }
+
+  @Post('positions/:id')
+  @HttpCode(302)
+  async positionUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.position.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!existing) return res.redirect('/ui/positions');
+    let v: ReturnType<ViewController['parseCodeNameForm']>;
+    try {
+      v = this.parseCodeNameForm(body);
+    } catch (e: any) {
+      return this.renderPositionForm(
+        res,
+        user,
+        this.locale(req),
+        { id, code: body?.code ?? '', name: body?.name ?? '', status: body?.status === 'N' ? 'N' : 'Y', companyId: existing.companyId },
+        e?.message,
+        400,
+      );
+    }
+    const companyId = (await this.mdCompanyId(user, body)) ?? existing.companyId;
+    const dup = await this.prisma.position.findFirst({ where: { companyId, code: v.code, NOT: { id } } });
+    if (dup) {
+      return this.renderPositionForm(
+        res,
+        user,
+        this.locale(req),
+        { id, code: v.code, name: v.name, status: v.isActive ? 'Y' : 'N', companyId },
+        'err_name_exists',
+        400,
+      );
+    }
+    await this.prisma.position.update({
+      where: { id },
+      data: { companyId, code: v.code, name: v.name, isActive: v.isActive },
+    });
+    return res.redirect('/ui/positions');
+  }
+
+  @Post('positions/:id/toggle')
+  @HttpCode(302)
+  async positionToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.position.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) await this.prisma.position.update({ where: { id }, data: { isActive: !row.isActive } });
+    return res.redirect('/ui/positions');
+  }
+
+  @Post('positions/:id/delete')
+  @HttpCode(302)
+  async positionDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/positions')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.position.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) {
+      const used = await this.prisma.user.count({ where: { positionId: id } });
+      if (used > 0) return res.redirect('/ui/positions?error=err_in_use');
+      await this.prisma.position.delete({ where: { id } });
+    }
+    return res.redirect('/ui/positions');
+  }
+
+  // work schedules admin UI — details replace-on-save per schedule
+
+  private scheduleKeep(body: any, id: number | null, companyId: number | null) {
+    const details = SCHEDULE_DAYS.map((day) => ({
+      day,
+      time_in: String(body?.[`in_${day}`] ?? '08:00').slice(0, 5),
+      time_out: String(body?.[`out_${day}`] ?? '17:00').slice(0, 5),
+      tolerance: Number(body?.[`tol_${day}`] ?? 0) || 0,
+      is_active: body?.[`on_${day}`] === 'Y',
+    }));
+    return {
+      id,
+      code: String(body?.code ?? ''),
+      name: String(body?.name ?? ''),
+      status: body?.status === 'N' ? 'N' : 'Y',
+      companyId,
+      details,
+    };
+  }
+
+  private parseScheduleForm(body: any) {
+    const base = this.parseCodeNameForm(body);
+    const details: { day: string; timeIn: string; timeOut: string; tolerance: number }[] = [];
+    for (const day of SCHEDULE_DAYS) {
+      if (body?.[`on_${day}`] !== 'Y') continue;
+      const timeIn = String(body?.[`in_${day}`] ?? '');
+      const timeOut = String(body?.[`out_${day}`] ?? '');
+      if (!TIME_RE.test(timeIn) || !TIME_RE.test(timeOut)) throw new Error('err_time_invalid');
+      const tolerance = Number(body?.[`tol_${day}`] ?? 0);
+      if (!Number.isInteger(tolerance) || tolerance < 0 || tolerance > 600) {
+        throw new Error('err_tolerance_invalid');
+      }
+      details.push({
+        day,
+        timeIn: timeIn.length === 5 ? `${timeIn}:00` : timeIn,
+        timeOut: timeOut.length === 5 ? `${timeOut}:00` : timeOut,
+        tolerance,
+      });
+    }
+    if (!details.length) throw new Error('err_detail_required');
+    return { ...base, details };
+  }
+
+  private async renderScheduleForm(
+    res: Response,
+    user: any,
+    locale: string,
+    row: any,
+    error: string | null = null,
+    status = 200,
+  ) {
+    return res.status(status).render('schedule-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: error ? this.mdFormError(error, locale) : null,
+      row,
+      days: SCHEDULE_DAYS,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: row?.companyId ?? user.companyId,
+      page: 'schedules',
+    });
+  }
+
+  private scheduleFormRow(row: any) {
+    const byDay: Record<string, any> = {};
+    for (const d of row.details) {
+      byDay[d.dayOfWeek] = {
+        day: d.dayOfWeek,
+        time_in: d.timeIn.slice(0, 5),
+        time_out: d.timeOut.slice(0, 5),
+        tolerance: d.toleranceMinutes,
+        is_active: d.isActive,
+      };
+    }
+    const details = SCHEDULE_DAYS.map(
+      (day) =>
+        byDay[day] ?? {
+          day,
+          time_in: '08:00',
+          time_out: '17:00',
+          tolerance: 0,
+          is_active: false,
+        },
+    );
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      status: row.isActive ? 'Y' : 'N',
+      companyId: row.companyId,
+      details,
+    };
+  }
+
+  @Get('schedules/new')
+  async scheduleNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const locale = this.locale(req);
+    const empty = {
+      id: null,
+      code: '',
+      name: '',
+      status: 'Y',
+      companyId: user.companyId,
+      details: SCHEDULE_DAYS.map((day) => ({
+        day,
+        time_in: '08:00',
+        time_out: '17:00',
+        tolerance: 0,
+        is_active: WORKDAYS.includes(day as any),
+      })),
+    };
+    return this.renderScheduleForm(res, user, locale, empty);
+  }
+
+  @Get('schedules/:id/edit')
+  async scheduleEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.schedule.findFirst({
+      where: this.tenantWhere(user, { id }),
+      include: { details: true },
+    });
+    if (!row) return res.redirect('/ui/schedules');
+    return this.renderScheduleForm(res, user, this.locale(req), this.scheduleFormRow(row));
+  }
+
+  @Post('schedules')
+  @HttpCode(302)
+  async scheduleCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const locale = this.locale(req);
+    let v: ReturnType<ViewController['parseScheduleForm']>;
+    try {
+      v = this.parseScheduleForm(body);
+    } catch (e: any) {
+      return this.renderScheduleForm(res, user, locale, this.scheduleKeep(body, null, user.companyId), e?.message, 400);
+    }
+    const companyId = await this.mdCompanyId(user, body);
+    if (companyId == null) {
+      return this.renderScheduleForm(res, user, locale, this.scheduleKeep(body, null, null), 'err_company_required', 400);
+    }
+    const dup = await this.prisma.schedule.findFirst({ where: { companyId, code: v.code } });
+    if (dup) {
+      return this.renderScheduleForm(res, user, locale, this.scheduleKeep(body, null, companyId), 'err_name_exists', 400);
+    }
+    await this.prisma.schedule.create({
+      data: {
+        companyId,
+        code: v.code,
+        name: v.name,
+        isActive: v.isActive,
+        details: {
+          create: v.details.map((d) => ({
+            dayOfWeek: d.day as any,
+            timeIn: d.timeIn,
+            timeOut: d.timeOut,
+            toleranceMinutes: d.tolerance,
+          })),
+        },
+      },
+    });
+    return res.redirect('/ui/schedules');
+  }
+
+  @Post('schedules/:id')
+  @HttpCode(302)
+  async scheduleUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.schedule.findFirst({
+      where: this.tenantWhere(user, { id }),
+      include: { details: true },
+    });
+    if (!existing) return res.redirect('/ui/schedules');
+    let v: ReturnType<ViewController['parseScheduleForm']>;
+    try {
+      v = this.parseScheduleForm(body);
+    } catch (e: any) {
+      return this.renderScheduleForm(res, user, locale, this.scheduleKeep(body, id, existing.companyId), e?.message, 400);
+    }
+    const companyId = (await this.mdCompanyId(user, body)) ?? existing.companyId;
+    const dup = await this.prisma.schedule.findFirst({ where: { companyId, code: v.code, NOT: { id } } });
+    if (dup) {
+      return this.renderScheduleForm(res, user, locale, this.scheduleKeep(body, id, companyId), 'err_name_exists', 400);
+    }
+    await this.prisma.$transaction([
+      this.prisma.scheduleDetail.deleteMany({ where: { scheduleId: id } }),
+      this.prisma.schedule.update({
+        where: { id },
+        data: {
+          companyId,
+          code: v.code,
+          name: v.name,
+          isActive: v.isActive,
+          details: {
+            create: v.details.map((d) => ({
+              dayOfWeek: d.day as any,
+              timeIn: d.timeIn,
+              timeOut: d.timeOut,
+              toleranceMinutes: d.tolerance,
+            })),
+          },
+        },
+      }),
+    ]);
+    return res.redirect('/ui/schedules');
+  }
+
+  @Post('schedules/:id/toggle')
+  @HttpCode(302)
+  async scheduleToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.schedule.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) await this.prisma.schedule.update({ where: { id }, data: { isActive: !row.isActive } });
+    return res.redirect('/ui/schedules');
+  }
+
+  @Post('schedules/:id/delete')
+  @HttpCode(302)
+  async scheduleDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/schedules')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.schedule.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) {
+      const [users, attendances, replacementOffs] = await Promise.all([
+        this.prisma.user.count({ where: { scheduleId: id } }),
+        this.prisma.attendances.count({ where: { scheduleId: id } }),
+        this.prisma.replacementOff.count({ where: { scheduleId: id } }),
+      ]);
+      if (users > 0 || attendances > 0 || replacementOffs > 0) {
+        return res.redirect('/ui/schedules?error=err_in_use');
+      }
+      await this.prisma.schedule.delete({ where: { id } });
+    }
+    return res.redirect('/ui/schedules');
   }
 
   @Get('leave-types')
