@@ -57,8 +57,9 @@ docker compose up -d   # mysql + phpmyadmin (lokal dev)
 
 ## Deploy server (Ubuntu via SSH)
 
-- **Host SSH**: `ubuntu` (BatchMode/key sudah terpasang di mesin dev).
+- **Server = cloud VM** (bukan mesin lokal). Akses: `ssh ubuntu` (BatchMode/key sudah terpasang di mesin dev). Jangan tanya lagi lokasi server.
 - **Remote dir**: `/opt/njs-habsen`
+- Mesin dev lokal **tidak ada Docker daemon / MySQL lokal** — semua perintah butuh DB (`migrate:dev`, `seed`, `test:e2e`, logs, smoke, verifikasi runtime) **wajib via `ssh ubuntu` di server**, jangan di lokal.
 - **Koding di lokal, deploy ke server** — jangan edit file langsung di server kecuali `.env`.
 - **Publik**: Cloudflare Tunnel → `https://sistemlvn.web.id` → `http://127.0.0.1:3000` (app bind hanya loopback; jangan buka port 3000 ke publik).
 

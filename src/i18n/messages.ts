@@ -40,6 +40,13 @@ export const MESSAGES: Record<string, Record<Locale, string>> = {
   BLOCKED_BY_PERMIT: { id: 'Tanggal ini sedang dalam masa izin', en: 'This date is during approved permit' },
   BLOCKED_BY_REPLACEMENT_OFF: { id: 'Tanggal ini sedang dalam masa replacement off', en: 'This date is during replacement off' },
   LOCATION_NOT_FOUND: { id: 'Lokasi tidak ditemukan', en: 'Location not found' },
+  LOCATION_NAME_REQUIRED: { id: 'Nama lokasi tidak boleh kosong', en: 'Location name is required' },
+  LOCATION_ADDRESS_REQUIRED: { id: 'Alamat lengkap tidak boleh kosong', en: 'Full address is required' },
+  LOCATION_RADIUS_INVALID: { id: 'Radius harus lebih dari 0', en: 'Radius must be greater than 0' },
+  LOCATION_NAME_EXISTS: { id: 'Lokasi dengan nama tersebut sudah ada', en: 'Location with this name already exists' },
+  LOCATION_IN_USE: { id: 'Data lokasi ini aktif atau digunakan', en: 'This location is active or in use' },
+  LOCATION_SAVE_FAILED: { id: 'Lokasi tidak berhasil disimpan', en: 'Failed to save location' },
+  LOCATION_UPDATE_FAILED: { id: 'Lokasi tidak berhasil diperbarui', en: 'Failed to update location' },
 
   // face
   FACE_NOT_REGISTERED: { id: 'Foto master belum tersedia. Silakan daftarkan wajah Anda.', en: 'Master photo missing. Please register your face.' },

@@ -86,6 +86,21 @@ function tr(key: string, locale: string): string {
     unread: { id: 'Belum dibaca', en: 'Unread' },
     title: { id: 'Judul', en: 'Title' },
     legal_name: { id: 'Nama Legal', en: 'Legal Name' },
+    add: { id: 'Tambah', en: 'Add' },
+    edit: { id: 'Ubah', en: 'Edit' },
+    delete: { id: 'Hapus', en: 'Delete' },
+    save: { id: 'Simpan', en: 'Save' },
+    cancel: { id: 'Batal', en: 'Cancel' },
+    back: { id: 'Kembali', en: 'Back' },
+    toggle: { id: 'Aktif/Nonaktif', en: 'Toggle' },
+    confirm_delete: { id: 'Hapus data ini?', en: 'Delete this record?' },
+    address: { id: 'Alamat Lengkap', en: 'Full Address' },
+    location_name: { id: 'Nama Lokasi', en: 'Location Name' },
+    map_pick: { id: 'Klik peta untuk isi koordinat', en: 'Click map to fill coordinates' },
+    active_label: { id: 'Status Aktif', en: 'Active Status' },
+    yes: { id: 'Ya', en: 'Yes' },
+    no: { id: 'Tidak', en: 'No' },
+    in_use: { id: 'Data lokasi ini aktif atau digunakan', en: 'This location is active or in use' },
   };
   const entry = map[key];
   if (!entry) return key;
@@ -397,17 +412,286 @@ export class ViewController {
     return res.render('locations', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      canEdit: user.role !== 'SUPERVISOR',
       rows: rows.map((l) => ({
         id: l.id,
         code: l.code,
         name: l.name,
+        address: (l as any).address ?? '',
         latitude: String(l.latitude),
         longitude: String(l.longitude),
-        radius: l.radiusMeters,
+        radiusMeters: l.radiusMeters,
         status: l.status,
       })),
       page: 'locations',
     });
+  }
+
+  // Port of legacy lokasi.php op=add/update — form + save via UI.
+  // Only PLATFORM_ADMIN / COMPANY_ADMIN may mutate (legacy: modifikasi/hapus).
+  private requireLocationAdmin(user: any, res: Response): boolean {
+    if (user.role === 'SUPERVISOR') {
+      res.redirect('/ui/locations');
+      return false;
+    }
+    return true;
+  }
+
+  private parseLocationForm(body: any): {
+    code: string;
+    name: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    radiusMeters: number;
+    status: 'Y' | 'N';
+  } {
+    const name = String(body?.name ?? '').trim();
+    if (!name) throw new Error('NAME_REQUIRED');
+    const address = String(body?.address ?? '').trim();
+    if (!address) throw new Error('ADDRESS_REQUIRED');
+    if (address.length > 500) throw new Error('ADDRESS_TOO_LONG');
+    const latitude = Number(body?.latitude);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) throw new Error('LAT_INVALID');
+    const longitude = Number(body?.longitude);
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw new Error('LON_INVALID');
+    const radiusMeters = Number(body?.radius_meters ?? 900);
+    if (!Number.isInteger(radiusMeters) || radiusMeters < 1) throw new Error('RADIUS_INVALID');
+    let code = String(body?.code ?? '').trim();
+    if (!code) {
+      code = name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 32);
+    }
+    if (!code) throw new Error('CODE_REQUIRED');
+    return { code, name, address, latitude, longitude, radiusMeters, status: body?.status === 'Y' ? 'Y' : 'N' };
+  }
+
+  private locationFormError(code: string, locale: string): string {
+    const id = locale !== 'en';
+    switch (code) {
+      case 'NAME_REQUIRED':
+        return id ? 'Nama lokasi tidak boleh kosong' : 'Location name is required';
+      case 'ADDRESS_REQUIRED':
+        return id ? 'Alamat lengkap tidak boleh kosong' : 'Full address is required';
+      case 'ADDRESS_TOO_LONG':
+        return id ? 'Alamat maksimal 500 karakter' : 'Address must be at most 500 characters';
+      case 'LAT_INVALID':
+        return id ? 'Latitude tidak valid' : 'Invalid latitude';
+      case 'LON_INVALID':
+        return id ? 'Longitude tidak valid' : 'Invalid longitude';
+      case 'RADIUS_INVALID':
+        return id ? 'Radius harus lebih dari 0' : 'Radius must be greater than 0';
+      case 'CODE_REQUIRED':
+        return id ? 'Kode tidak valid' : 'Invalid code';
+      case 'NAME_EXISTS':
+        return id ? 'Lokasi dengan nama tersebut sudah ada' : 'Location with this name already exists';
+      case 'IN_USE':
+        return id ? 'Data lokasi ini aktif atau digunakan' : 'This location is active or in use';
+      default:
+        return id ? 'Lokasi tidak berhasil disimpan' : 'Failed to save location';
+    }
+  }
+
+  @Get('locations/new')
+  async locationNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    return res.render('location-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      row: null,
+      page: 'locations',
+    });
+  }
+
+  @Get('locations/:id/edit')
+  async locationEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    if (!row) return res.redirect('/ui/locations');
+    return res.render('location-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      row: {
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        address: (row as any).address ?? '',
+        latitude: String(row.latitude),
+        longitude: String(row.longitude),
+        radiusMeters: row.radiusMeters,
+        status: row.status,
+      },
+      page: 'locations',
+    });
+  }
+
+  @Post('locations')
+  @HttpCode(302)
+  async locationCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const keepOf = (src: any) => ({
+      id: undefined,
+      code: src?.code ?? src?.Code ?? '',
+      name: src?.name ?? '',
+      address: src?.address ?? '',
+      latitude: src?.latitude ?? '',
+      longitude: src?.longitude ?? '',
+      radiusMeters: src?.radiusMeters ?? src?.radius_meters ?? 900,
+      status: src?.status ?? 'Y',
+    });
+    const fail = (code: string, keep: any) =>
+      res.status(400).render('location-form', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: this.locationFormError(code, locale),
+        row: keep,
+        page: 'locations',
+      });
+    let v: ReturnType<ViewController['parseLocationForm']>;
+    try {
+      v = this.parseLocationForm(body);
+    } catch (e: any) {
+      return fail(e?.message ?? 'SAVE_FAILED', keepOf(body));
+    }
+    const dup = await this.prisma.location.findFirst({
+      where: { companyId: user.companyId!, OR: [{ name: v.name }, { code: v.code }] },
+    });
+    if (dup) return fail('NAME_EXISTS', keepOf(v));
+    await this.prisma.location.create({
+      data: {
+        companyId: user.companyId!,
+        code: v.code,
+        name: v.name,
+        address: v.address,
+        latitude: v.latitude,
+        longitude: v.longitude,
+        radiusMeters: v.radiusMeters,
+        status: v.status,
+      },
+    });
+    return res.redirect('/ui/locations');
+  }
+
+  @Post('locations/:id')
+  @HttpCode(302)
+  async locationUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    if (!existing) return res.redirect('/ui/locations');
+    const keepOf = (src: any) => ({
+      id,
+      code: src?.code ?? '',
+      name: src?.name ?? '',
+      address: src?.address ?? '',
+      latitude: src?.latitude ?? '',
+      longitude: src?.longitude ?? '',
+      radiusMeters: src?.radiusMeters ?? src?.radius_meters ?? 900,
+      status: src?.status ?? 'Y',
+    });
+    const fail = (code: string) =>
+      res.status(400).render('location-form', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: this.locationFormError(code, locale),
+        row: keepOf(body),
+        page: 'locations',
+      });
+    let v: ReturnType<ViewController['parseLocationForm']>;
+    try {
+      v = this.parseLocationForm(body);
+    } catch (e: any) {
+      return fail(e?.message ?? 'SAVE_FAILED');
+    }
+    const dup = await this.prisma.location.findFirst({
+      where: { companyId: user.companyId!, NOT: { id }, OR: [{ name: v.name }, { code: v.code }] },
+    });
+    if (dup) return fail('NAME_EXISTS');
+    await this.prisma.location.update({
+      where: { id },
+      data: {
+        code: v.code,
+        name: v.name,
+        address: v.address,
+        latitude: v.latitude,
+        longitude: v.longitude,
+        radiusMeters: v.radiusMeters,
+        status: v.status,
+      },
+    });
+    return res.redirect('/ui/locations');
+  }
+
+  @Post('locations/:id/toggle')
+  @HttpCode(302)
+  async locationToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    if (row) {
+      await this.prisma.location.update({ where: { id }, data: { status: row.status === 'Y' ? 'N' : 'Y' } });
+    }
+    return res.redirect('/ui/locations');
+  }
+
+  @Post('locations/:id/delete')
+  @HttpCode(302)
+  async locationDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireLocationAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    if (row) {
+      const used = await this.prisma.user.count({ where: { locationId: id } });
+      if (used > 0) {
+        const rows = await this.prisma.location.findMany({
+          where: { companyId: user.companyId! },
+          orderBy: { name: 'asc' },
+        });
+        return res.status(409).render('locations', {
+          ...this.helpers(locale),
+          user: { nama_lengkap: user.namaLengkap, role: user.role },
+          error: this.locationFormError('IN_USE', locale),
+          canEdit: user.role !== 'SUPERVISOR',
+          rows: rows.map((l) => ({
+            id: l.id,
+            code: l.code,
+            name: l.name,
+            address: (l as any).address ?? '',
+            latitude: String(l.latitude),
+            longitude: String(l.longitude),
+            radiusMeters: l.radiusMeters,
+            status: l.status,
+          })),
+          page: 'locations',
+        });
+      }
+      await this.prisma.location.delete({ where: { id } });
+    }
+    return res.redirect('/ui/locations');
   }
 
   @Get('schedules')

@@ -10,7 +10,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, Max, IsIn } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, MaxLength, IsIn } from 'class-validator';
 import { Roles } from '../common/roles.guard';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
@@ -25,14 +25,18 @@ class CodeNameDto {
 }
 
 class LocationDto {
-  @IsString() @IsNotEmpty() code!: string;
-  @IsString() @IsNotEmpty() name!: string;
-  @IsNotEmpty() latitude!: any;
-  @IsNotEmpty() longitude!: any;
+  @IsOptional() @IsString() code?: string;
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() @MaxLength(500) address?: string;
+  @IsOptional() latitude?: any;
+  @IsOptional() longitude?: any;
   @IsOptional() radius_meters?: number;
   @IsOptional() @IsIn(['Y', 'N']) status?: 'Y' | 'N';
   @IsOptional() @IsBoolean() is_flexible?: boolean;
 }
+
+// Legacy default radius (lokasi.php form: value="900")
+const LEGACY_DEFAULT_RADIUS = 900;
 
 class ScheduleDetailDto {
   @IsIn(['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as any)
@@ -61,7 +65,7 @@ class LeaveTypeDto {
 
 class HolidayDto {
   @Matches(DATE_RE) tanggal!: string;
-  @IsString() @IsNotEmpty() @Max(160) name!: string;
+  @IsString() @IsNotEmpty() @MaxLength(160) name!: string;
 }
 
 class CompanySettingDto {
@@ -155,6 +159,8 @@ export class MasterdataController {
       code: r.code,
       name: r.name,
       lokasi_nama: r.name,
+      address: r.address,
+      lokasi_alamat: r.address,
       latitude: Number(r.latitude),
       lokasi_latitude: Number(r.latitude),
       longitude: Number(r.longitude),
@@ -167,31 +173,78 @@ export class MasterdataController {
     }));
   }
 
+  // Port of legacy LokasiController::validateInput — required fields + ranges
+  private validateLocationInput(dto: Partial<LocationDto>, opts: { partial: boolean }) {
+    const out: { code?: string; name?: string; address?: string; lat?: number; lon?: number; radius?: number } = {};
+    if (dto.code !== undefined) {
+      const code = String(dto.code ?? '').trim();
+      if (!opts.partial && !code) throw err('VALIDATION_ERROR', 400);
+      if (code) out.code = code;
+    }
+    if (dto.name !== undefined || !opts.partial) {
+      const name = String(dto.name ?? '').trim();
+      if (!name) throw err('LOCATION_NAME_REQUIRED', 400);
+      out.name = name;
+    }
+    if (dto.address !== undefined || !opts.partial) {
+      const address = String(dto.address ?? '').trim();
+      if (!address) throw err('LOCATION_ADDRESS_REQUIRED', 400);
+      if (address.length > 500) throw err('VALIDATION_ERROR', 400);
+      out.address = address;
+    }
+    if (dto.latitude !== undefined || !opts.partial) {
+      const lat = Number(dto.latitude);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw err('COORDINATES_INVALID', 400);
+      out.lat = lat;
+    }
+    if (dto.longitude !== undefined || !opts.partial) {
+      const lon = Number(dto.longitude);
+      if (!Number.isFinite(lon) || lon < -180 || lon > 180) throw err('COORDINATES_INVALID', 400);
+      out.lon = lon;
+    }
+    if (dto.radius_meters !== undefined || !opts.partial) {
+      const radius = Number(dto.radius_meters ?? LEGACY_DEFAULT_RADIUS);
+      if (!Number.isInteger(radius) || radius < 1) throw err('LOCATION_RADIUS_INVALID', 400);
+      out.radius = radius;
+    }
+    return out;
+  }
+
+  private async assertLocationNameFree(companyId: number, name: string, excludeId = 0) {
+    const where: any = { companyId, name };
+    if (excludeId) where.NOT = { id: excludeId };
+    const dup = await this.c().location.findFirst({ where });
+    if (dup) throw err('LOCATION_NAME_EXISTS', 409, { name });
+  }
+
   @Post('locations')
   async createLocation(@Req() req: any, @Body() dto: LocationDto) {
-    const lat = Number(dto.latitude);
-    const lon = Number(dto.longitude);
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw err('COORDINATES_INVALID', 400);
-    if (!Number.isFinite(lon) || lon < -180 || lon > 180) throw err('COORDINATES_INVALID', 400);
-    const radius = Number(dto.radius_meters ?? 100);
-    if (!Number.isInteger(radius) || radius < 1) throw err('VALIDATION_ERROR', 400);
+    const v = this.validateLocationInput(dto, { partial: false });
     const c = this.c();
-    const dup = await c.location.findFirst({
-      where: { companyId: this.cid(req), OR: [{ code: dto.code }, { name: dto.name }] },
-    });
-    if (dup) throw err('DUPLICATE', 409);
-    return c.location.create({
-      data: {
-        companyId: this.cid(req),
-        code: dto.code,
-        name: dto.name,
-        latitude: lat,
-        longitude: lon,
-        radiusMeters: radius,
-        status: dto.status ?? 'Y',
-        isFlexible: dto.is_flexible ?? false,
-      },
-    });
+    const companyId = this.cid(req);
+    await this.assertLocationNameFree(companyId, v.name!);
+    const code = v.code ?? v.name!.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 32);
+    const dupCode = await c.location.findFirst({ where: { companyId, code } });
+    if (dupCode) throw err('LOCATION_NAME_EXISTS', 409, { name: v.name! });
+    return c.location
+      .create({
+        data: {
+          companyId,
+          code,
+          name: v.name!,
+          address: v.address!,
+          latitude: v.lat!,
+          longitude: v.lon!,
+          radiusMeters: v.radius!,
+          status: dto.status ?? 'Y',
+          isFlexible: dto.is_flexible ?? false,
+        },
+      })
+      .catch((e: any) => {
+        if (e?.code === 'P2002' || /unique/i.test(String(e?.message ?? '')))
+          throw err('LOCATION_NAME_EXISTS', 409, { name: v.name! });
+        throw e;
+      });
   }
 
   @Patch('locations/:id')
@@ -199,24 +252,17 @@ export class MasterdataController {
     const c = this.c();
     const row = await c.location.findFirst({ where: { id, companyId: this.cid(req) } });
     if (!row) throw err('LOCATION_NOT_FOUND', 404);
+    const v = this.validateLocationInput(dto, { partial: true });
     const data: any = {};
-    if (dto.code !== undefined) data.code = dto.code;
-    if (dto.name !== undefined) data.name = dto.name;
-    if (dto.latitude !== undefined) {
-      const lat = Number(dto.latitude);
-      if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw err('COORDINATES_INVALID', 400);
-      data.latitude = lat;
+    if (v.code !== undefined) data.code = v.code;
+    if (v.name !== undefined) {
+      await this.assertLocationNameFree(row.companyId, v.name, id);
+      data.name = v.name;
     }
-    if (dto.longitude !== undefined) {
-      const lon = Number(dto.longitude);
-      if (!Number.isFinite(lon) || lon < -180 || lon > 180) throw err('COORDINATES_INVALID', 400);
-      data.longitude = lon;
-    }
-    if (dto.radius_meters !== undefined) {
-      const radius = Number(dto.radius_meters);
-      if (!Number.isInteger(radius) || radius < 1) throw err('VALIDATION_ERROR', 400);
-      data.radiusMeters = radius;
-    }
+    if (v.address !== undefined) data.address = v.address;
+    if (v.lat !== undefined) data.latitude = v.lat;
+    if (v.lon !== undefined) data.longitude = v.lon;
+    if (v.radius !== undefined) data.radiusMeters = v.radius;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.is_flexible !== undefined) data.isFlexible = dto.is_flexible;
     return c.location.update({ where: { id }, data });
@@ -228,7 +274,7 @@ export class MasterdataController {
     const row = await c.location.findFirst({ where: { id, companyId: this.cid(req) } });
     if (!row) throw err('LOCATION_NOT_FOUND', 404);
     const used = await c.user.count({ where: { locationId: id } });
-    if (used > 0) throw err('DUPLICATE', 409);
+    if (used > 0) throw err('LOCATION_IN_USE', 409);
     await c.location.delete({ where: { id } });
     return true;
   }

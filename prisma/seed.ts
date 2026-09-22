@@ -62,6 +62,7 @@ async function main() {
       companyId: company.id,
       code: 'HQ',
       name: 'Kantor Pusat',
+      address: 'Jl. Contoh Alamat No. 1, Jakarta',
       latitude: -6.2,
       longitude: 106.8166667,
       radiusMeters: 100,

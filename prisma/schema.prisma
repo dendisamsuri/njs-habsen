@@ -144,6 +144,7 @@ model Location {
   companyId    Int      @map("company_id")
   code         String   @db.VarChar(32)
   name         String   @db.VarChar(160)
+  address      String   @db.Text // port dari lokasi_alamat (TEXT NOT NULL)
   latitude     Decimal  @db.Decimal(10, 7)
   longitude    Decimal  @db.Decimal(10, 7)
   radiusMeters Int      @default(100) @map("radius_meters")

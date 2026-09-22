@@ -1,0 +1,75 @@
+<%- include('partials/header') %>
+<style>
+  #MapLocation { width: 100%; height: 460px; min-height: 320px; border-radius: 6px; overflow: hidden; background: #e5e7eb; }
+  #MapLocation img { max-width: none !important; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.5rem; }
+  .form-grid label { display: block; margin-bottom: .8rem; font-size: .85rem; }
+  .form-grid input, .form-grid textarea, .form-grid select { display: block; width: 100%; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: .88rem; }
+  .form-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 767px) { .form-grid { grid-template-columns: 1fr; } #MapLocation { height: 360px !important; } }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<h1><%= row ? t('edit') : t('add') %> — <%= t('nav_locations') %></h1>
+<% if (typeof error !== 'undefined' && error) { %><p class="error"><%= error %></p><% } %>
+<form method="post" action="<%= row ? '/ui/locations/' + row.id : '/ui/locations' %>">
+  <div class="form-grid">
+    <div>
+      <label><%= t('code') %>
+        <input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="(auto)">
+      </label>
+      <label><%= t('location_name') %>
+        <input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>">
+      </label>
+      <label><%= t('address') %>
+        <textarea name="address" maxlength="500" rows="2" required><%= row && row.address ? row.address : '' %></textarea>
+      </label>
+      <label>Latitude
+        <input id="latitude" name="latitude" type="number" step="any" min="-90" max="90" required
+               value="<%= row && (row.latitude || row.latitude === 0) ? row.latitude : '' %>">
+      </label>
+      <label>Longitude
+        <input id="longitude" name="longitude" type="number" step="any" min="-180" max="180" required
+               value="<%= row && (row.longitude || row.longitude === 0) ? row.longitude : '' %>">
+      </label>
+      <label><%= t('radius') %>
+        <input name="radius_meters" type="number" min="1" step="1" required
+               value="<%= row && row.radiusMeters ? row.radiusMeters : 900 %>">
+      </label>
+      <label><%= t('active_label') %>
+        <select name="status">
+          <option value="Y" <%= row && row.status === 'Y' ? 'selected' : (!row ? 'selected' : '') %>><%= t('yes') %></option>
+          <option value="N" <%= row && row.status === 'N' ? 'selected' : '' %>><%= t('no') %></option>
+        </select>
+      </label>
+    </div>
+    <div>
+      <label><%= t('map_pick') %>
+        <div id="MapLocation"></div>
+      </label>
+    </div>
+  </div>
+  <hr>
+  <button type="submit"><%= t('save') %></button>
+  <a href="/ui/locations"><%= t('back') %></a>
+</form>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  var latEl = document.getElementById('latitude');
+  var lngEl = document.getElementById('longitude');
+  var lat = parseFloat(latEl.value);
+  var lng = parseFloat(lngEl.value);
+  if (!isFinite(lat)) lat = -6.2;
+  if (!isFinite(lng)) lng = 106.8166667;
+  var map = L.map('MapLocation').setView([lat, lng], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+  function sync(latlng) {
+    latEl.value = latlng.lat.toFixed(7);
+    lngEl.value = latlng.lng.toFixed(7);
+  }
+  marker.on('dragend', function () { sync(marker.getLatLng()); });
+  map.on('click', function (e) { marker.setLatLng(e.latlng); sync(e.latlng); });
+})();
+</script>
+<%- include('partials/footer') %>
