@@ -9,7 +9,14 @@ import { resolveLocale } from './i18n/messages';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+  // helmet default 'no-referrer' hides our origin from cross-site assets (OSM tiles return 403 without it).
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }),
+  );
   app.use(cookieParser());
   app.use((req: any, _res: any, next: any) => {
     req.locale = resolveLocale(req.headers['accept-language']);

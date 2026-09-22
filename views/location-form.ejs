@@ -112,7 +112,12 @@
   if (!isFinite(lat)) lat = -6.2;
   if (!isFinite(lng)) lng = 106.8166667;
   var map = L.map('MapLocation').setView([lat, lng], 15);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  // OSM tiles serve 403 tiles without a Referer; attribution is ODbL-mandatory.
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+    referrerPolicy: 'origin',
+  }).addTo(map);
   var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
   function sync(latlng) {
     latEl.value = latlng.lat.toFixed(7);
