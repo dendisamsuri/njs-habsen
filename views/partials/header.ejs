@@ -90,6 +90,14 @@
       border-color: rgba(120,160,255,.28);
       color: #fff;
     }
+    .side-drop > summary.side-link { cursor: pointer; list-style: none; }
+    .side-drop > summary.side-link::-webkit-details-marker { display: none; }
+    .side-drop > summary .caret { margin-left: auto; font-size: .7rem; transition: transform .15s; }
+    .side-drop[open] > summary .caret { transform: rotate(180deg); }
+    .side-drop .side-sub {
+      margin-left: .85rem; padding-left: .55rem;
+      border-left: 1px solid rgba(255,255,255,.14);
+    }
     .side-foot {
       border-top: 1px solid rgba(255,255,255,.1);
       padding: .85rem;
@@ -307,10 +315,12 @@
   const _current = _nav.find(function(n){ return n.href === '/ui/' + _page; }) || _nav[0];
   const _title = _current ? _current.label : 'Dashboard';
   const _initial = (typeof user !== 'undefined' && user && user.nama_lengkap) ? user.nama_lengkap.trim().charAt(0).toUpperCase() : '?';
+  const _canPlatform = typeof user !== 'undefined' && user && user.role === 'PLATFORM_ADMIN';
   const _groups = [
     { label: 'MENU', hrefs: ['/ui/dashboard', '/ui/reports', '/ui/process-logs'] },
-    { label: 'KELOLA', hrefs: ['/ui/approvals', '/ui/leaves', '/ui/users', '/ui/locations', '/ui/schedules', '/ui/leave-types', '/ui/holidays'] },
-    { label: 'SISTEM', hrefs: ['/ui/notifications', '/ui/companies'] },
+    { label: 'KELOLA', hrefs: ['/ui/approvals', '/ui/leaves', '/ui/users', '/ui/schedules', '/ui/leave-types', '/ui/holidays'] },
+    { label: 'MASTERDATA', drop: true, hrefs: ['/ui/locations', '/ui/companies'] },
+    { label: 'SISTEM', hrefs: ['/ui/notifications'] },
   ];
   const _byHref = {};
   _nav.forEach(function(n){ _byHref[n.href] = n; });
@@ -323,12 +333,23 @@
     </div>
     <div class="side-scroll">
       <% _groups.forEach(function(g) { %>
-        <% const items = g.hrefs.map(function(h){ return _byHref[h]; }).filter(Boolean); %>
+        <% const items = g.hrefs.map(function(h){ return _byHref[h]; }).filter(function(it){ return it && (it.href !== '/ui/companies' || _canPlatform); }); %>
         <% if (items.length) { %>
-          <div class="side-label"><%= g.label %></div>
-          <% items.forEach(function(item) { %>
-            <a class="side-link <%= item.href === '/ui/' + _page ? 'active' : '' %>" href="<%= item.href %>"><%= item.label %></a>
-          <% }) %>
+          <% if (g.drop) { %>
+            <details class="side-drop" <%= items.some(function(i){ return i.href === '/ui/' + _page; }) ? 'open' : '' %>>
+              <summary class="side-link"><%= g.label %><span class="caret" aria-hidden="true">▾</span></summary>
+              <div class="side-sub">
+                <% items.forEach(function(item) { %>
+                  <a class="side-link <%= item.href === '/ui/' + _page ? 'active' : '' %>" href="<%= item.href %>"><%= item.label %></a>
+                <% }) %>
+              </div>
+            </details>
+          <% } else { %>
+            <div class="side-label"><%= g.label %></div>
+            <% items.forEach(function(item) { %>
+              <a class="side-link <%= item.href === '/ui/' + _page ? 'active' : '' %>" href="<%= item.href %>"><%= item.label %></a>
+            <% }) %>
+          <% } %>
         <% } %>
       <% }) %>
     </div>

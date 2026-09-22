@@ -54,6 +54,8 @@ Aksen `--brand` hanya di momen kunci (CTA utama, fokus keyboard) — bukan di se
 - Empty state: sebab + aksi nyata, lewat key i18n (`empty_*`). Tanpa "Tidak ada data" polos.
 - Ikon: tanpa emoji, tanpa ikon library default. Label teks menopang makna; `☰` hanya untuk menu mobile (fungsional + aria-label).
 - Form: label di atas input, target sentuh ≥38px, focus ring terlihat.
+- Input: tanpa border keras — isi `--line-soft`, radius 10px, border transparan (penyangga ukuran saja); hover garis `--line` 1px, focus putih + `--brand-2`. Segmented/radio control mengikuti pola isi lembut yang sama; opsi terpilih `--brand-soft` + `--brand-2`.
+- Field grouping: section judul normal-case bold + pemisah hairline `--line-soft`, help text `--muted` 0.74rem di bawah input. Bukan blok form rapat tanpa jarak.
 
 ## Gerak (MOTION 1)
 

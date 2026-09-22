@@ -1,0 +1,117 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec + .form-grid { margin-bottom: 1.3rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  #name, #code {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    transition: background .15s, border-color .15s;
+  }
+  #name::placeholder, #code::placeholder { color: var(--faint); }
+  #name:hover, #code:hover { border-color: var(--line); }
+  #name:focus, #code:focus { background: #fff; border-color: var(--brand-2); }
+  .seg { display: flex; gap: .5rem; }
+  .seg-opt {
+    flex: 1; display: flex; align-items: center; gap: .5rem;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
+    font-size: .85rem; font-weight: 600; color: #334155;
+    transition: background .15s, border-color .15s;
+  }
+  .seg-opt:hover { border-color: var(--line); }
+  .seg-opt:has(input:checked), .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+  .seg-opt:focus-within { outline: 2px solid rgba(79,70,229,.2); outline-offset: 1px; border-color: var(--brand-2); }
+  .seg-opt input { margin: 0; accent-color: var(--brand); }
+  .pv-label { font-size: .76rem; font-weight: 700; color: var(--muted); margin-bottom: .6rem; }
+  .pv-name { font-size: .95rem; min-height: 1.4em; }
+  .pv-code { font-size: .74rem; color: var(--muted); min-height: 1.2em; margin-bottom: .55rem; }
+  .pv-hint { font-size: .74rem; color: var(--faint); margin: .8rem 0 0; }
+  @media (max-width: 640px) { .seg { flex-direction: column; } }
+</style>
+<div class="page-head">
+  <div>
+    <h1><%= row ? t('edit') : t('add') %> — <%= t('nav_companies') %></h1>
+  </div>
+  <div class="page-actions"><a class="btn" href="/ui/companies">← <%= t('back') %></a></div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="split">
+  <div class="card card-pad">
+    <form method="post" action="<%= row ? '/ui/companies/' + row.id : '/ui/companies' %>">
+      <div class="form-sec"><%= t('section_identity') %></div>
+      <div class="form-grid">
+        <div class="field full">
+          <%= t('company_name') %>
+          <input id="name" name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" />
+          <div class="help"><%= t('name_help') %></div>
+        </div>
+        <div class="field full">
+          <%= t('code') %>
+          <input id="code" name="code" maxlength="30" value="<%= row && row.code ? row.code : '' %>" placeholder="<%= t('code_ph') %>" />
+          <div class="help"><%= t('code_help') %></div>
+        </div>
+      </div>
+
+      <div class="form-sec blocked"><%= t('status') %></div>
+      <div class="seg">
+        <label class="seg-opt">
+          <input type="radio" name="status" value="ACTIVE" <%= !row || row.status === 'ACTIVE' ? 'checked' : '' %> />
+          <span><%= t('active') %></span>
+        </label>
+        <label class="seg-opt">
+          <input type="radio" name="status" value="INACTIVE" <%= row && row.status === 'INACTIVE' ? 'checked' : '' %> />
+          <span><%= t('inactive') %></span>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit"><%= t('save') %></button>
+        <a class="btn" href="/ui/companies"><%= t('cancel') %></a>
+      </div>
+    </form>
+  </div>
+
+  <div class="card card-pad">
+    <div class="pv-label"><%= t('preview') %></div>
+    <b class="pv-name" id="pvName"></b>
+    <div class="mono pv-code" id="pvCode"></div>
+    <span class="badge <%= row && row.status === 'INACTIVE' ? 'red' : 'green' %>" id="pvBadge"><%= row && row.status ? row.status : 'ACTIVE' %></span>
+    <p class="pv-hint"><%= t('preview_hint') %></p>
+  </div>
+</div>
+<script>
+(function () {
+  var nameEl = document.getElementById('name');
+  var codeEl = document.getElementById('code');
+  var pvName = document.getElementById('pvName');
+  var pvCode = document.getElementById('pvCode');
+  var pvBadge = document.getElementById('pvBadge');
+
+  function derive(v) {
+    return v.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30);
+  }
+
+  function sync() {
+    pvName.textContent = nameEl.value;
+    pvCode.textContent = codeEl.value.trim() || derive(nameEl.value);
+    var st = document.querySelector('input[name="status"]:checked').value;
+    pvBadge.textContent = st;
+    pvBadge.className = 'badge ' + (st === 'ACTIVE' ? 'green' : 'red');
+    document.querySelectorAll('.seg-opt').forEach(function (l) {
+      l.classList.toggle('on', l.querySelector('input').checked);
+    });
+  }
+
+  nameEl.addEventListener('input', sync);
+  codeEl.addEventListener('input', sync);
+  document.querySelectorAll('input[name="status"]').forEach(function (r) {
+    r.addEventListener('change', sync);
+  });
+  sync();
+})();
+</script>
+<%- include('partials/footer') %>

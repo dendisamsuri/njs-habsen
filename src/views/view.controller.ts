@@ -5,7 +5,6 @@ import {
   Body,
   Req,
   Res,
-  Query,
   HttpCode,
   Param,
 } from '@nestjs/common';
@@ -20,6 +19,7 @@ import { resolveLocale } from '../i18n/messages';
 import { err } from '../common/exceptions';
 
 const COOKIE = 'absensi_token';
+const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,29}$/;
 const NAV = [
   { href: '/ui/dashboard', key: 'nav_dashboard' },
   { href: '/ui/reports', key: 'nav_reports' },
@@ -145,7 +145,25 @@ function tr(key: string, locale: string): string {
       en: 'No locations yet. Add a location to enable radius-based check-in.',
     },
     empty_notifications: { id: 'Belum ada notifikasi untuk Anda.', en: 'No notifications for you.' },
-    empty_companies: { id: 'Belum ada perusahaan terdaftar.', en: 'No companies registered.' },
+    empty_companies: {
+      id: 'Belum ada perusahaan. Klik Tambah untuk mendaftarkan perusahaan pertama.',
+      en: 'No companies yet. Add one to register your first company.',
+    },
+    company_name: { id: 'Nama Perusahaan', en: 'Company Name' },
+    company_list: { id: 'Daftar perusahaan', en: 'Company list' },
+    inactive: { id: 'Nonaktif', en: 'Inactive' },
+    section_identity: { id: 'Identitas', en: 'Identity' },
+    name_help: { id: 'Maksimal 160 karakter.', en: 'Maximum 160 characters.' },
+    code_ph: { id: 'otomatis dari nama', en: 'derived from name' },
+    code_help: {
+      id: 'Kosongkan untuk membuat kode otomatis dari nama. 2–30 karakter: huruf, angka, titik, strip, underscore.',
+      en: 'Leave empty to derive the code from the name. 2–30 chars: letters, numbers, dot, dash, underscore.',
+    },
+    preview: { id: 'Pratinjau baris tabel', en: 'Table row preview' },
+    preview_hint: {
+      id: 'Baris tampil di menu Masterdata → Perusahaan. Nilai diambil dari form ini.',
+      en: 'The row appears under Masterdata → Companies. Values come from this form.',
+    },
     empty_schedules: { id: 'Belum ada jadwal kerja terdaftar.', en: 'No work schedules registered.' },
     empty_holidays: { id: 'Belum ada hari libur terdaftar.', en: 'No holidays registered.' },
     empty_leave_types: { id: 'Belum ada tipe cuti.', en: 'No leave types yet.' },
@@ -437,15 +455,215 @@ export class ViewController {
   async companiesPage(@Req() req: Request, @Res() res: Response) {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
-    if (user.role !== 'PLATFORM_ADMIN') return res.redirect('/ui/dashboard');
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.company.findMany({ orderBy: { name: 'asc' } });
     return res.render('companies', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? this.companyFormError(req.query.error as string, locale) : null,
       rows: rows.map((c) => ({ id: c.id, code: c.code, name: c.name, status: c.status })),
       page: 'companies',
     });
+  }
+
+  private requirePlatformAdmin(user: any, res: Response): boolean {
+    if (user.role !== 'PLATFORM_ADMIN') {
+      res.redirect('/ui/dashboard');
+      return false;
+    }
+    return true;
+  }
+
+  private parseCompanyForm(body: any): { code: string; name: string; status: 'ACTIVE' | 'INACTIVE' } {
+    const name = String(body?.name ?? '').trim();
+    if (!name) throw new Error('NAME_REQUIRED');
+    if (name.length > 160) throw new Error('NAME_TOO_LONG');
+    let code = String(body?.code ?? '').trim().toUpperCase();
+    if (!code) {
+      code = name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 30);
+    }
+    if (!CODE_RE.test(code)) throw new Error('CODE_INVALID');
+    return { code, name, status: body?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE' };
+  }
+
+  private companyFormError(code: string, locale: string): string {
+    const id = locale !== 'en';
+    switch (code) {
+      case 'NAME_REQUIRED':
+        return id ? 'Nama perusahaan tidak boleh kosong' : 'Company name is required';
+      case 'NAME_TOO_LONG':
+        return id ? 'Nama perusahaan maksimal 160 karakter' : 'Company name is limited to 160 characters';
+      case 'CODE_INVALID':
+        return id
+          ? 'Kode perusahaan wajib 2-30 karakter: huruf, angka, titik, strip, underscore'
+          : 'Company code must be 2-30 chars: letters, numbers, dot, dash, underscore';
+      case 'NAME_EXISTS':
+        return id ? 'Nama atau kode perusahaan sudah dipakai' : 'Company name or code already exists';
+      case 'IN_USE':
+        return id
+          ? 'Perusahaan masih memiliki data (karyawan, lokasi, atau absensi)'
+          : 'Company still has data (employees, locations, or attendance)';
+      default:
+        return id ? 'Gagal menyimpan perusahaan' : 'Failed to save company';
+    }
+  }
+
+  private companyFormKeep(src: any) {
+    return {
+      id: src?.id,
+      code: src?.code ?? '',
+      name: src?.name ?? '',
+      status: src?.status ?? 'ACTIVE',
+    };
+  }
+
+  @Get('companies/new')
+  async companyNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    return res.render('company-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      row: null,
+      page: 'companies',
+    });
+  }
+
+  @Get('companies/:id/edit')
+  async companyEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.company.findUnique({ where: { id } });
+    if (!row) return res.redirect('/ui/companies');
+    return res.render('company-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      row: { id: row.id, code: row.code, name: row.name, status: row.status },
+      page: 'companies',
+    });
+  }
+
+  @Post('companies')
+  @HttpCode(302)
+  async companyCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const fail = (code: string, keep: any) =>
+      res.status(400).render('company-form', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: this.companyFormError(code, locale),
+        row: keep,
+        page: 'companies',
+      });
+    let v: ReturnType<ViewController['parseCompanyForm']>;
+    try {
+      v = this.parseCompanyForm(body);
+    } catch (e: any) {
+      return fail(e?.message ?? 'SAVE_FAILED', this.companyFormKeep(body));
+    }
+    const dup = await this.prisma.company.findFirst({ where: { OR: [{ code: v.code }, { name: v.name }] } });
+    if (dup) return fail('NAME_EXISTS', this.companyFormKeep(v));
+    const company = await this.prisma.company.create({ data: v });
+    await this.prisma.companySetting.create({ data: { companyId: company.id } });
+    return res.redirect('/ui/companies');
+  }
+
+  @Post('companies/:id')
+  @HttpCode(302)
+  async companyUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.company.findUnique({ where: { id } });
+    if (!existing) return res.redirect('/ui/companies');
+    const fail = (code: string, keep: any) =>
+      res.status(400).render('company-form', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: this.companyFormError(code, locale),
+        row: keep,
+        page: 'companies',
+      });
+    let v: ReturnType<ViewController['parseCompanyForm']>;
+    try {
+      v = this.parseCompanyForm(body);
+    } catch (e: any) {
+      return fail(e?.message ?? 'SAVE_FAILED', this.companyFormKeep({ ...body, id }));
+    }
+    const dup = await this.prisma.company.findFirst({
+      where: { id: { not: id }, OR: [{ code: v.code }, { name: v.name }] },
+    });
+    if (dup) return fail('NAME_EXISTS', this.companyFormKeep({ ...v, id }));
+    return this.prisma.company.update({ where: { id }, data: v }).then(() => res.redirect('/ui/companies'));
+  }
+
+  @Post('companies/:id/toggle')
+  @HttpCode(302)
+  async companyToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.company.findUnique({ where: { id } });
+    if (row) {
+      await this.prisma.company.update({
+        where: { id },
+        data: { status: row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
+      });
+    }
+    return res.redirect('/ui/companies');
+  }
+
+  @Post('companies/:id/delete')
+  @HttpCode(302)
+  async companyDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requirePlatformAdmin(user, res)) return res as any;
+    const locale = this.locale(req);
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.company.findUnique({ where: { id } });
+    if (!row) return res.redirect('/ui/companies');
+    const [users, locations, attendances, leaveRequests] = await Promise.all([
+      this.prisma.user.count({ where: { companyId: id, deletedAt: null } }),
+      this.prisma.location.count({ where: { companyId: id } }),
+      this.prisma.attendances.count({ where: { companyId: id } }),
+      this.prisma.leaveRequest.count({ where: { companyId: id } }),
+    ]);
+    if (users + locations + attendances + leaveRequests > 0) {
+      return res.status(409).render('companies', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: this.companyFormError('IN_USE', locale),
+        rows: (await this.prisma.company.findMany({ orderBy: { name: 'asc' } })).map((c) => ({
+          id: c.id,
+          code: c.code,
+          name: c.name,
+          status: c.status,
+        })),
+        page: 'companies',
+      });
+    }
+    await this.prisma.companySetting.deleteMany({ where: { companyId: id } });
+    await this.prisma.company.delete({ where: { id } });
+    return res.redirect('/ui/companies');
   }
 
   @Get('locations')
