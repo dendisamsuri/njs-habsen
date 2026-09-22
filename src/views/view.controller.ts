@@ -154,6 +154,16 @@ function tr(key: string, locale: string): string {
     company_list: { id: 'Daftar perusahaan', en: 'Company list' },
     inactive: { id: 'Nonaktif', en: 'Inactive' },
     section_identity: { id: 'Identitas', en: 'Identity' },
+    section_coordinates: { id: 'Koordinat & radius', en: 'Coordinates & radius' },
+    radius_help: {
+      id: 'Jarak maksimal absen dari titik lokasi, dalam meter.',
+      en: 'Maximum check-in distance from the location point, in meters.',
+    },
+    map_title: { id: 'Peta lokasi', en: 'Location map' },
+    code_auto_help: {
+      id: 'Kosongkan untuk membuat kode otomatis dari nama. Maksimal 32 karakter.',
+      en: 'Leave empty to derive the code from the name. Maximum 32 characters.',
+    },
     name_help: { id: 'Maksimal 160 karakter.', en: 'Maximum 160 characters.' },
     code_ph: { id: 'otomatis dari nama', en: 'derived from name' },
     code_help: {

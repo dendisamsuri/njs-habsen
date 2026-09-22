@@ -6,7 +6,9 @@ export const ROLES_KEY = 'roles';
 @Injectable()
 export class RolesGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const roles = Reflect.getMetadata(ROLES_KEY, context.getHandler());
+    const roles =
+      Reflect.getMetadata(ROLES_KEY, context.getHandler()) ??
+      Reflect.getMetadata(ROLES_KEY, context.getClass());
     if (!roles || roles.length === 0) return true;
     const req = context.switchToHttp().getRequest();
     const role = req.user?.role;

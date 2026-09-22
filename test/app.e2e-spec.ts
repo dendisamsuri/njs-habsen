@@ -1,9 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as request from 'supertest';
-import { App } from '../src/app.module';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { resolveLocale } from '../src/i18n/messages';
 
 /**
  * e2e — requires MySQL (docker compose up) + migrated DB + seed.
@@ -21,6 +20,11 @@ describe('API e2e (smoke)', () => {
         imports: [AppModule],
       }).compile();
       app = moduleFixture.createNestApplication();
+      // mirrors main.ts locale middleware
+      app.use((req: any, _res: any, next: any) => {
+        req.locale = resolveLocale(req.headers['accept-language']);
+        next();
+      });
       app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
       app.setGlobalPrefix('api/v1');
       await app.init();

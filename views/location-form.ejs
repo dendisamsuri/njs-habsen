@@ -1,8 +1,39 @@
 <%- include('partials/header') %>
 <style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec + .form-grid { margin-bottom: 1.3rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input, .field select, .field textarea {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    transition: background .15s, border-color .15s;
+  }
+  .field input::placeholder, .field textarea::placeholder { color: var(--faint); }
+  .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    background: #fff; border-color: var(--brand-2);
+    outline: 2px solid rgba(79,70,229,.2); outline-offset: 1px;
+  }
+  .seg { display: flex; gap: .5rem; }
+  .seg-opt {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
+    font-size: .85rem; font-weight: 600; color: #334155;
+    transition: background .15s, border-color .15s;
+  }
+  .seg-opt:hover { border-color: var(--line); }
+  .seg-opt:has(input:checked), .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+  .seg-opt:focus-within { outline: 2px solid rgba(79,70,229,.2); outline-offset: 1px; border-color: var(--brand-2); }
+  .seg-opt input { margin: 0; accent-color: var(--brand); }
   #MapLocation { width: 100%; height: 420px; min-height: 300px; border-radius: 12px; overflow: hidden; background: #e5e7eb; border: 1px solid var(--line); }
   #MapLocation img { max-width: none !important; }
   @media (max-width: 900px) { #MapLocation { height: 340px !important; } }
+  @media (max-width: 640px) { .seg { flex-direction: column; } }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <div class="page-head">
@@ -15,6 +46,7 @@
 <div class="split" style="grid-template-columns:1fr 1.1fr;">
   <div class="card card-pad">
     <form method="post" action="<%= row ? '/ui/locations/' + row.id : '/ui/locations' %>">
+      <div class="form-sec"><%= t('section_identity') %></div>
       <div class="form-grid">
         <% if (typeof companies !== 'undefined' && companies) { %>
         <div class="field full"><%= t('company_label') %>
@@ -25,18 +57,30 @@
           </select>
         </div>
         <% } %>
-        <div class="field"><%= t('code') %><input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="(auto)" /></div>
-        <div class="field"><%= t('active_label') %>
-          <select name="status">
-            <option value="Y" <%= row && row.status === 'Y' ? 'selected' : (!row ? 'selected' : '') %>><%= t('yes') %></option>
-            <option value="N" <%= row && row.status === 'N' ? 'selected' : '' %>><%= t('no') %></option>
-          </select>
+        <div class="field full"><%= t('location_name') %>
+          <input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" />
+          <div class="help"><%= t('name_help') %></div>
         </div>
-        <div class="field full"><%= t('location_name') %><input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" /></div>
+        <div class="field"><%= t('code') %>
+          <input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="<%= t('code_ph') %>" />
+          <div class="help"><%= t('code_auto_help') %></div>
+        </div>
+        <div class="field"><%= t('active_label') %>
+          <div class="seg">
+            <label class="seg-opt <%= row && row.status === 'N' ? '' : 'on' %>"><input type="radio" name="status" value="Y" <%= row && row.status === 'N' ? '' : 'checked' %> /><%= t('yes') %></label>
+            <label class="seg-opt <%= row && row.status === 'N' ? 'on' : '' %>"><input type="radio" name="status" value="N" <%= row && row.status === 'N' ? 'checked' : '' %> /><%= t('no') %></label>
+          </div>
+        </div>
         <div class="field full"><%= t('address') %><textarea name="address" maxlength="500" rows="2" required><%= row && row.address ? row.address : '' %></textarea></div>
+      </div>
+      <div class="form-sec blocked"><%= t('section_coordinates') %></div>
+      <div class="form-grid">
         <div class="field">Latitude<input id="latitude" name="latitude" type="number" step="any" min="-90" max="90" required value="<%= row && (row.latitude || row.latitude === 0) ? row.latitude : '' %>" /></div>
         <div class="field">Longitude<input id="longitude" name="longitude" type="number" step="any" min="-180" max="180" required value="<%= row && (row.longitude || row.longitude === 0) ? row.longitude : '' %>" /></div>
-        <div class="field full"><%= t('radius') %><input name="radius_meters" type="number" min="1" step="1" required value="<%= row && row.radiusMeters ? row.radiusMeters : 900 %>" /></div>
+        <div class="field full"><%= t('radius') %>
+          <input name="radius_meters" type="number" min="1" step="1" required value="<%= row && row.radiusMeters ? row.radiusMeters : 900 %>" />
+          <div class="help"><%= t('radius_help') %></div>
+        </div>
       </div>
       <div class="form-actions">
         <button class="btn primary" type="submit"><%= t('save') %></button>
@@ -45,13 +89,22 @@
     </form>
   </div>
   <div class="card card-pad">
-    <b><%= t('map_pick') %></b>
-    <div id="MapLocation" style="margin-top:.6rem;"></div>
+    <div class="form-sec"><%= t('map_title') %></div>
+    <div id="MapLocation"></div>
+    <div class="help"><%= t('map_pick') %></div>
   </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
+  document.querySelectorAll('input[name="status"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.querySelectorAll('.seg-opt').forEach(function (l) {
+        l.classList.toggle('on', l.querySelector('input').checked);
+      });
+    });
+  });
+
   var latEl = document.getElementById('latitude');
   var lngEl = document.getElementById('longitude');
   var lat = parseFloat(latEl.value);
