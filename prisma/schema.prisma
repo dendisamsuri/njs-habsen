@@ -1,0 +1,535 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ Platform / identity ============
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(32)
+  name      String   @db.VarChar(160)
+  status    String   @default("ACTIVE") @db.VarChar(16) // ACTIVE|INACTIVE
+  settings  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users                      User[]
+  positions                  Position[]
+  locations                  Location[]
+  holidays                   Holiday[]
+  schedules                  Schedule[]
+  leaveTypes                 LeaveType[]
+  companySettings            CompanySetting?
+  attendances                Attendances[]
+  leaveRequests              LeaveRequest[]
+  replacementOffs            ReplacementOff[]
+  leaveBalances              LeaveBalance[]
+  notifications              Notification[]
+  attendanceProcessLogs      AttendanceProcessLog[]
+  attendanceCorrectionAudits AttendanceCorrectionAudit[]
+  requestApprovals           RequestApproval[]
+  faceRecognitions           FaceRecognition[]
+
+  @@map("companies")
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  COMPANY_ADMIN
+  SUPERVISOR
+  EMPLOYEE
+}
+
+model User {
+  id                     Int       @id @default(autoincrement())
+  companyId              Int?      @map("company_id")
+  email                  String    @unique @db.VarChar(190)
+  passwordHash           String    @map("password_hash")
+  namaLengkap            String    @map("nama_lengkap") @db.VarChar(160)
+  nip                    String?   @db.VarChar(64)
+  role                   UserRole  @default(EMPLOYEE)
+  directLeadId           Int?      @map("direct_lead_id")
+  positionId             Int?      @map("position_id")
+  locationId             Int?      @map("location_id")
+  scheduleId             Int?      @map("schedule_id")
+  phone                  String?   @db.VarChar(32)
+  avatarUrl              String?   @map("avatar_url") @db.VarChar(500)
+  isActive               Boolean   @default(true) @map("is_active")
+  langPref               String    @default("id") @map("lang_pref") @db.VarChar(5)
+  jwtVersion             Int       @default(1) @map("jwt_version")
+  faceRegistered         Boolean   @default(false) @map("face_registered")
+  isFlexibleLocation     Boolean   @default(false) @map("is_flexible_location")
+  allowReplacementOff    Boolean   @default(true) @map("allow_replacement_off")
+  allowScheduleSelection Boolean   @default(false) @map("allow_schedule_selection")
+  allowMultipleCheckout  Boolean   @default(false) @map("allow_multiple_checkout")
+  allowHalfDay           Boolean   @default(true) @map("allow_half_day")
+  allowJointLeave        Boolean   @default(true) @map("allow_joint_leave")
+  mustChangePassword     Boolean   @default(false) @map("must_change_password")
+  lastLoginAt            DateTime? @map("last_login_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  deletedAt              DateTime? @map("deleted_at")
+
+  company          Company?                    @relation(fields: [companyId], references: [id])
+  directLead       User?                       @relation("UserDirectLead", fields: [directLeadId], references: [id])
+  directReports    User[]                      @relation("UserDirectLead")
+  position         Position?                   @relation(fields: [positionId], references: [id])
+  location         Location?                   @relation(fields: [locationId], references: [id])
+  schedule         Schedule?                   @relation(fields: [scheduleId], references: [id])
+  attendances      Attendances[]
+  leaveRequests    LeaveRequest[]
+  replacementOffs  ReplacementOff[]
+  leaveBalances    LeaveBalance[]
+  notifications    Notification[]
+  faceRecognitions FaceRecognition[]
+  refreshTokens     RefreshToken[]
+  requestApprovals  RequestApproval[] @relation("ApprovalActor")
+  correctionAudits AttendanceCorrectionAudit[]
+
+  @@index([companyId])
+  @@index([directLeadId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model LoginAttempt {
+  id        Int      @id @default(autoincrement())
+  email     String   @db.VarChar(190)
+  ip        String?  @db.VarChar(64)
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email, createdAt])
+  @@map("login_attempts")
+}
+
+// ============ Masterdata ============
+
+model Position {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  code      String   @db.VarChar(32)
+  name      String   @db.VarChar(120)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  users   User[]
+
+  @@unique([companyId, code])
+  @@map("positions")
+}
+
+model Location {
+  id           Int      @id @default(autoincrement())
+  companyId    Int      @map("company_id")
+  code         String   @db.VarChar(32)
+  name         String   @db.VarChar(160)
+  latitude     Decimal  @db.Decimal(10, 7)
+  longitude    Decimal  @db.Decimal(10, 7)
+  radiusMeters Int      @default(100) @map("radius_meters")
+  status       String   @default("Y") @db.VarChar(1) // Y|N (port dari lokasi_status)
+  isFlexible   Boolean  @default(false) @map("is_flexible")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company        Company       @relation(fields: [companyId], references: [id])
+  users          User[]
+  attendancesIn  Attendances[] @relation("AttendanceLocationIn")
+  attendancesOut Attendances[] @relation("AttendanceLocationOut")
+
+  @@unique([companyId, code])
+  @@map("locations")
+}
+
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  date      DateTime @db.Date
+  name      String   @db.VarChar(160)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, date])
+  @@map("holidays")
+}
+
+enum ScheduleDay {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  code      String   @db.VarChar(32)
+  name      String   @db.VarChar(120)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  details         ScheduleDetail[]
+  users           User[]
+  attendances     Attendances[]
+  replacementOffs ReplacementOff[]
+
+  @@unique([companyId, code])
+  @@map("schedules")
+}
+
+model ScheduleDetail {
+  id               Int         @id @default(autoincrement())
+  scheduleId       Int         @map("schedule_id")
+  dayOfWeek        ScheduleDay @map("day_of_week")
+  timeIn           String      @map("time_in") @db.VarChar(8)
+  timeOut          String      @map("time_out") @db.VarChar(8)
+  toleranceMinutes Int         @default(0) @map("tolerance_minutes")
+  isActive         Boolean     @default(true) @map("is_active")
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, dayOfWeek])
+  @@map("schedule_details")
+}
+
+enum LeaveCategory {
+  LEAVE
+  PERMIT
+  SICK
+}
+
+model LeaveType {
+  id                 Int           @id @default(autoincrement())
+  companyId          Int           @map("company_id")
+  code               String        @db.VarChar(32)
+  name               String        @db.VarChar(120)
+  category           LeaveCategory @default(LEAVE)
+  isDeductible       Boolean       @default(true) @map("is_deductible")
+  requiresAttachment Boolean       @default(false) @map("requires_attachment")
+  isActive           Boolean       @default(true) @map("is_active")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
+
+  @@unique([companyId, code])
+  @@map("leave_types")
+}
+
+model CompanySetting {
+  id             Int      @id @default(autoincrement())
+  companyId      Int      @unique @map("company_id")
+  timezone       String   @default("Asia/Jakarta") @db.VarChar(64)
+  tipeAbsen      String   @default("selfie") @map("tipe_absen") @db.VarChar(20) // selfie|recognition
+  requireHrFinal Boolean  @default(true) @map("require_hr_final")
+  dateFormat     String   @default("YYYY-MM-DD") @map("date_format") @db.VarChar(20)
+  extra          Json?
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("company_settings")
+}
+
+// ============ Attendance ============
+
+model Attendances {
+  id               Int      @id @default(autoincrement())
+  companyId        Int      @map("company_id")
+  userId           Int      @map("user_id")
+  tanggal          DateTime @db.Date
+  scheduleId       Int?     @map("schedule_id")
+  scheduleTimeIn   String?  @map("schedule_time_in") @db.VarChar(8)
+  scheduleTimeOut  String?  @map("schedule_time_out") @db.VarChar(8)
+  toleranceMinutes Int?     @map("tolerance_minutes")
+  checkIn          String?  @map("check_in") @db.VarChar(8)
+  checkOut         String?  @map("check_out") @db.VarChar(8)
+  statusMasuk      String?  @map("status_masuk") @db.VarChar(20) // TEPAT_WAKTU|TERLAMAT
+  statusPulang     String?  @map("status_pulang") @db.VarChar(20) // TEPAT_WAKTU|TERLAMAT
+  kehadiran        String   @default("HADIR") @db.VarChar(20) // HADIR|CUTI|IZIN|LIBUR
+  latitudeIn       Decimal? @map("latitude_in") @db.Decimal(10, 7)
+  longitudeIn      Decimal? @map("longitude_in") @db.Decimal(10, 7)
+  latitudeOut      Decimal? @map("latitude_out") @db.Decimal(10, 7)
+  longitudeOut     Decimal? @map("longitude_out") @db.Decimal(10, 7)
+  locationIdIn     Int?     @map("location_id_in")
+  locationIdOut    Int?     @map("location_id_out")
+  photoIn          String?  @map("photo_in") @db.VarChar(500)
+  photoOut         String?  @map("photo_out") @db.VarChar(500)
+  tipe             String?  @db.VarChar(20) // selfie|recognition
+  replacementOffId Int?     @map("replacement_off_id")
+  isFlexible       Boolean  @default(false) @map("is_flexible")
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  company          Company                     @relation(fields: [companyId], references: [id])
+  user             User                        @relation(fields: [userId], references: [id])
+  schedule         Schedule?                   @relation(fields: [scheduleId], references: [id])
+  locationIn       Location?                   @relation("AttendanceLocationIn", fields: [locationIdIn], references: [id])
+  locationOut      Location?                   @relation("AttendanceLocationOut", fields: [locationIdOut], references: [id])
+  processLogs      AttendanceProcessLog[]
+  correctionAudits AttendanceCorrectionAudit[]
+  replacementOff   ReplacementOff?             @relation(fields: [replacementOffId], references: [id])
+
+  @@unique([companyId, userId, tanggal])
+  @@index([companyId, tanggal])
+  @@index([companyId, kehadiran])
+  @@map("attendances")
+}
+
+model AttendanceProcessLog {
+  id           Int      @id @default(autoincrement())
+  companyId    Int      @map("company_id")
+  flowId       String   @unique @map("flow_id") @db.VarChar(64)
+  userId       Int?     @map("user_id")
+  attendanceId Int?     @map("attendance_id")
+  stage        String   @db.VarChar(40)
+  status       String   @default("PENDING") @db.VarChar(20) // PENDING|SUCCESS|FAILED
+  payload      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company       Company                  @relation(fields: [companyId], references: [id])
+  events        AttendanceProcessEvent[]
+  attendances   Attendances?             @relation(fields: [attendancesId], references: [id])
+  attendancesId Int?
+
+  @@index([companyId, createdAt])
+  @@map("attendance_process_logs")
+}
+
+model AttendanceProcessEvent {
+  id        Int      @id @default(autoincrement())
+  flowId    String   @map("flow_id") @db.VarChar(64)
+  stage     String   @db.VarChar(40)
+  status    String   @db.VarChar(20)
+  message   String?  @db.VarChar(500)
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  log AttendanceProcessLog @relation(fields: [flowId], references: [flowId])
+
+  @@index([flowId])
+  @@map("attendance_process_events")
+}
+
+model AttendanceCorrectionAudit {
+  id           Int      @id @default(autoincrement())
+  companyId    Int      @map("company_id")
+  attendanceId Int      @map("attendance_id")
+  actorId      Int      @map("actor_id")
+  before       Json
+  after        Json
+  reason       String   @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company    Company     @relation(fields: [companyId], references: [id])
+  attendance Attendances @relation(fields: [attendanceId], references: [id])
+  actor      User        @relation(fields: [actorId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@map("attendance_correction_audits")
+}
+
+// ============ Requests & approval ============
+
+enum LeaveStatus {
+  pending
+  waiting_hr
+  approved
+  rejected
+  cancelled
+}
+
+model LeaveRequest {
+  id          Int         @id @default(autoincrement())
+  companyId   Int         @map("company_id")
+  userId      Int         @map("user_id")
+  leaveTypeId Int         @map("leave_type_id")
+  startDate   DateTime    @map("start_date") @db.Date
+  endDate     DateTime    @map("end_date") @db.Date
+  totalDays   Decimal     @default(0) @map("total_days") @db.Decimal(5, 2)
+  isHalfDay   Boolean     @default(false) @map("is_half_day")
+  reason      String      @db.Text
+  attachment  String?     @db.VarChar(500)
+  status      LeaveStatus @default(pending)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  deletedAt   DateTime?   @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([companyId, status])
+  @@index([companyId, userId])
+  @@map("leave_requests")
+}
+
+enum ReplacementOffStatus {
+  draft
+  pending
+  waiting_hr
+  approved
+  rejected
+  cancelled
+  expired
+  used
+}
+
+model ReplacementOff {
+  id              Int                  @id @default(autoincrement())
+  companyId       Int                  @map("company_id")
+  userId          Int                  @map("user_id")
+  scheduleId      Int?                 @map("schedule_id")
+  originalDate    DateTime             @map("original_date") @db.Date
+  isHalfDay       Boolean              @default(false) @map("is_half_day")
+  replacementDate DateTime?            @map("replacement_date") @db.Date
+  expiresAt       DateTime?            @map("expires_at") @db.Date
+  status          ReplacementOffStatus @default(draft)
+  employeeNote    String?              @map("employee_note") @db.Text
+  reason          String?              @db.Text
+  createdById     Int?                 @map("created_by")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  deletedAt       DateTime?            @map("deleted_at")
+
+  company     Company       @relation(fields: [companyId], references: [id])
+  user        User          @relation(fields: [userId], references: [id])
+  schedule    Schedule?     @relation(fields: [scheduleId], references: [id])
+  attendances Attendances[]
+
+  @@index([companyId, status])
+  @@index([companyId, userId])
+  @@map("replacement_off")
+}
+
+enum ApprovalRequestType {
+  LEAVE
+  REPLACEMENT_OFF
+}
+
+enum ApprovalEventType {
+  SUBMIT
+  APPROVAL
+  EDIT
+  DELETE
+}
+
+model RequestApproval {
+  id          Int                 @id @default(autoincrement())
+  companyId   Int                 @map("company_id")
+  requestType ApprovalRequestType @map("request_type")
+  requestId   Int                 @map("request_id")
+  eventType   ApprovalEventType   @map("event_type")
+  actorId     Int                 @map("actor_id")
+  level       Int                 @default(1)
+  status      String              @db.VarChar(20) // PENDING|WAITING_HR|APPROVED|REJECTED|CANCELLED|EXPIRED|SUBMITTED
+  comment     String?             @db.VarChar(500)
+  before      Json?
+  after       Json?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  actor   User    @relation("ApprovalActor", fields: [actorId], references: [id])
+
+  @@index([companyId, requestType, requestId])
+  @@map("request_approvals")
+}
+
+// Unique guard: satu keputusan APPROVAL supervisor (level=1) per request —
+// partial unique tidak portable di MySQL 8 → app-level lock di transaksi
+// (mirip supervisor_request_guard PHP).
+
+model LeaveBalance {
+  id          Int      @id @default(autoincrement())
+  companyId   Int      @map("company_id")
+  userId      Int      @map("user_id")
+  leaveTypeId Int      @map("leave_type_id")
+  year        Int
+  entitlement Decimal  @default(0) @db.Decimal(5, 2)
+  taken       Decimal  @default(0) @db.Decimal(5, 2)
+  // remaining = generated column (MySQL GENERATED ALWAYS) — JANGAN insert/update dari app
+  remaining   Decimal? @default(dbgenerated("(`entitlement` - `taken`)")) @db.Decimal(5, 2)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([companyId, userId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+enum NotificationCategory {
+  APPROVAL
+  LEAVE
+  REPLACEMENT_OFF
+  ATTENDANCE
+  SYSTEM
+}
+
+model Notification {
+  id            Int                  @id @default(autoincrement())
+  companyId     Int                  @map("company_id")
+  recipientType String               @map("recipient_type") @db.VarChar(20) // USER|ROLE
+  recipientId   Int?                 @map("recipient_id")
+  role          String?              @db.VarChar(20)
+  category      NotificationCategory @default(SYSTEM)
+  eventKey      String               @map("event_key") @db.VarChar(160)
+  title         String               @db.VarChar(200)
+  body          String?              @db.Text
+  link          String?              @db.VarChar(500)
+  isRead        Boolean              @default(false) @map("is_read")
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User?   @relation(fields: [recipientId], references: [id])
+
+  @@unique([companyId, eventKey])
+  @@index([companyId, recipientId, isRead])
+  @@map("notifications")
+}
+
+model FaceRecognition {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  userId    Int      @map("user_id")
+  photoPath String   @map("photo_path") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, userId])
+  @@map("face_recognitions")
+}

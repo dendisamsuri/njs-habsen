@@ -1,0 +1,29 @@
+<%- include('partials/header') %>
+<h1><%= t('nav_dashboard') %> — <%= t('today') %> <%= today %></h1>
+<% if (!report || !report.rows || report.rows.length === 0) { %>
+  <div class="empty"><%= t('empty') %></div>
+<% } else { %>
+<table>
+  <thead>
+    <tr>
+      <th><%= t('employee') %></th>
+      <th><%= t('checkin') %></th>
+      <th><%= t('checkout') %></th>
+      <th><%= t('status') %></th>
+      <th><%= t('position') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% report.rows.forEach(function(r) { %>
+      <tr>
+        <td><%= r.nama_lengkap %></td>
+        <td><%= r.absen_in || '-' %></td>
+        <td><%= r.absen_out || '-' %></td>
+        <td><span class="badge"><%= r.kehadiran || '-' %></span> <%= r.status_masuk || '' %></td>
+        <td><%= r.posisi_nama || '-' %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% } %>
+<%- include('partials/footer') %>

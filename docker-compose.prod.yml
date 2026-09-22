@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    container_name: njs_habsen_app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/njs_habsen?timezone=Z
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      JWT_ACCESS_TTL: "3600"
+      JWT_REFRESH_TTL: "604800"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      FACE_RECOGNITION_URL: ${FACE_RECOGNITION_URL:-http://face:8000}
+      FACE_RECOGNITION_TIMEOUT: "10"
+      UPLOAD_DIR: uploads
+    volumes:
+      - app_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    container_name: njs_habsen_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: njs_habsen
+      TZ: Asia/Jakarta
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  seed:
+    build: .
+    container_name: njs_habsen_seed
+    restart: "no"
+    environment:
+      DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/njs_habsen?timezone=Z
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      NODE_ENV: production
+    depends_on:
+      mysql:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "node prisma/seed.js || true"]
+    profiles: ["seed"]
+
+volumes:
+  mysql_data:
+  app_uploads:

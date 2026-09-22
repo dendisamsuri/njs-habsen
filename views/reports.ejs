@@ -1,0 +1,36 @@
+<%- include('partials/header') %>
+<h1><%= t('nav_reports') %> — <%= today %></h1>
+<form method="get" action="/ui/reports" style="margin-bottom:.75rem;">
+  <label><%= t('date') %></label>
+  <input type="date" name="tanggal" value="<%= today %>" style="padding:.4rem;border:1px solid #d1d5db;border-radius:4px;" />
+  <button class="small" type="submit" style="margin-left:.4rem;">OK</button>
+</form>
+<% if (!data || !data.rows || data.rows.length === 0) { %>
+  <div class="empty"><%= t('empty') %></div>
+<% } else { %>
+<table>
+  <thead>
+    <tr>
+      <th>NIP</th>
+      <th><%= t('employee') %></th>
+      <th><%= t('checkin') %></th>
+      <th><%= t('checkout') %></th>
+      <th><%= t('status') %></th>
+      <th><%= t('location') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% data.rows.forEach(function(r) { %>
+      <tr>
+        <td><%= r.nip || '-' %></td>
+        <td><%= r.nama_lengkap %></td>
+        <td><%= r.absen_in || '-' %></td>
+        <td><%= r.absen_out || '-' %></td>
+        <td><span class="badge"><%= r.kehadiran || '-' %></span> <%= r.status_masuk || '' %> <%= r.status_pulang || '' %></td>
+        <td><%= r.latitude_longtitude_in || '-' %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% } %>
+<%- include('partials/footer') %>

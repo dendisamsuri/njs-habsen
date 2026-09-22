@@ -1,0 +1,18 @@
+<%- include('partials/header') %>
+<h1><%= t('nav_companies') %></h1>
+<table>
+  <thead>
+    <tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('status') %></th></tr>
+  </thead>
+  <tbody>
+    <% rows.forEach(function(r) { %>
+      <tr>
+        <td><%= r.code %></td>
+        <td><%= r.name %></td>
+        <td><span class="badge <%= r.status === 'ACTIVE' ? 'approved' : 'inactive' %>"><%= r.status %></span></td>
+      </tr>
+    <% }) %>
+    <% if (rows.length === 0) { %><tr><td colspan="3" class="empty"><%= t('empty') %></td></tr><% } %>
+  </tbody>
+</table>
+<%- include('partials/footer') %>

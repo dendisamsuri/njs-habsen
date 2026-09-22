@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+uploads/*
+!uploads/.gitkeep
+.env
+*.log
+coverage
+test
+.kilo
+docker-compose.yml
+docker-compose.prod.yml
+docs
+AGENTS.md

@@ -1,0 +1,38 @@
+<%- include('partials/header') %>
+<h1><%= t('nav_approvals') %></h1>
+<table>
+  <thead>
+    <tr>
+      <th><%= t('employee') %></th>
+      <th><%= t('name') %></th>
+      <th><%= t('date') %></th>
+      <th><%= t('status') %></th>
+      <th><%= t('reason') %></th>
+      <th><%= t('actions') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% rows.forEach(function(r) { %>
+      <tr>
+        <td><%= r.nama_lengkap %></td>
+        <td><%= r.jenis %></td>
+        <td><%= r.start_date %> → <%= r.end_date %></td>
+        <td><span class="badge <%= r.status %>"><%= r.status %></span></td>
+        <td><%= r.reason %></td>
+        <td>
+          <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide">
+            <input type="hidden" name="decision" value="approved" />
+            <button class="small ok" type="submit"><%= t('approve') %></button>
+          </form>
+          <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide">
+            <input type="hidden" name="decision" value="rejected" />
+            <input type="hidden" name="comment" value="Ditolak via dashboard" />
+            <button class="small no" type="submit"><%= t('reject') %></button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+    <% if (rows.length === 0) { %><tr><td colspan="6" class="empty"><%= t('empty') %></td></tr><% } %>
+  </tbody>
+</table>
+<%- include('partials/footer') %>

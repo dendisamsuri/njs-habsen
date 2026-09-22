@@ -1,0 +1,2 @@
+# build only — no TS compile of scripts needed
+#!/usr/bin/env node

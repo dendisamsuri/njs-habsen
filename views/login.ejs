@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= t('login_title') %></title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6f8; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    .card { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); width: 100%; max-width: 360px; }
+    h1 { font-size: 1.2rem; margin: 0 0 1rem; }
+    label { display: block; font-size: .85rem; margin: .6rem 0 .2rem; color: #444; }
+    input { width: 100%; padding: .55rem .7rem; border: 1px solid #ccd; border-radius: 4px; font-size: 1rem; }
+    button { margin-top: 1rem; width: 100%; padding: .65rem; background: #1a56db; color: #fff; border: 0; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    .error { background: #fde8e8; color: #9b1c1c; padding: .5rem .7rem; border-radius: 4px; font-size: .85rem; margin-bottom: .5rem; }
+    .langs { margin-top: 1rem; text-align: right; font-size: .8rem; }
+    .langs a { color: #1a56db; text-decoration: none; margin-left: .5rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1><%= t('login_title') %></h1>
+    <% if (error) { %><div class="error"><%= error %></div><% } %>
+    <form method="post" action="/ui/login">
+      <label><%= t('email') %></label>
+      <input type="email" name="email" required autocomplete="username" />
+      <label><%= t('password') %></label>
+      <input type="password" name="password" required autocomplete="current-password" />
+      <button type="submit"><%= t('sign_in') %></button>
+    </form>
+    <div class="langs">
+      <a href="<%= langUrl('id') %>">ID</a>
+      <a href="<%= langUrl('en') %>">EN</a>
+    </div>
+  </div>
+</body>
+</html>
