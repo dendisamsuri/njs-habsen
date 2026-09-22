@@ -382,11 +382,12 @@
   const _title = _current ? _current.label : 'Dashboard';
   const _initial = (typeof user !== 'undefined' && user && user.nama_lengkap) ? user.nama_lengkap.trim().charAt(0).toUpperCase() : '?';
   const _canPlatform = typeof user !== 'undefined' && user && user.role === 'PLATFORM_ADMIN';
+  const _canAdmin = typeof user !== 'undefined' && user && user.role !== 'SUPERVISOR';
   const _groups = [
     { label: 'MENU', hrefs: ['/ui/dashboard', '/ui/reports', '/ui/process-logs'] },
     { label: 'KELOLA', hrefs: ['/ui/approvals', '/ui/leaves', '/ui/users', '/ui/leave-types', '/ui/holidays'] },
     { label: 'MASTERDATA', drop: true, hrefs: ['/ui/locations', '/ui/schedules', '/ui/positions', '/ui/companies'] },
-    { label: 'SISTEM', hrefs: ['/ui/notifications'] },
+    { label: 'SISTEM', hrefs: ['/ui/notifications', '/ui/settings'] },
   ];
   const _byHref = {};
   _nav.forEach(function(n){ _byHref[n.href] = n; });
@@ -399,7 +400,7 @@
     </div>
     <div class="side-scroll">
       <% _groups.forEach(function(g) { %>
-        <% const items = g.hrefs.map(function(h){ return _byHref[h]; }).filter(function(it){ return it && (it.href !== '/ui/companies' || _canPlatform); }); %>
+        <% const items = g.hrefs.map(function(h){ return _byHref[h]; }).filter(function(it){ return it && ((it.href !== '/ui/companies' && it.href !== '/ui/settings') || _canAdmin) && (it.href !== '/ui/companies' || _canPlatform); }); %>
         <% if (items.length) { %>
           <% if (g.drop) { %>
             <details class="side-drop" <%= items.some(function(i){ return i.href === '/ui/' + _page; }) ? 'open' : '' %>>

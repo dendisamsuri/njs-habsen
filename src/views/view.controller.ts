@@ -36,6 +36,7 @@ const NAV = [
   { href: '/ui/holidays', key: 'nav_holidays' },
   { href: '/ui/process-logs', key: 'nav_process_logs' },
   { href: '/ui/notifications', key: 'nav_notifications' },
+  { href: '/ui/settings', key: 'nav_settings' },
   { href: '/ui/companies', key: 'nav_companies' },
 ];
 
@@ -53,6 +54,7 @@ function tr(key: string, locale: string): string {
     nav_holidays: { id: 'Libur', en: 'Holidays' },
     nav_process_logs: { id: 'Process Log', en: 'Process Log' },
     nav_notifications: { id: 'Notifikasi', en: 'Notifications' },
+    nav_settings: { id: 'Pengaturan', en: 'Settings' },
     nav_companies: { id: 'Perusahaan', en: 'Companies' },
     logout: { id: 'Keluar', en: 'Logout' },
     theme_label: { id: 'Tema tampilan', en: 'Display theme' },
@@ -162,6 +164,24 @@ function tr(key: string, locale: string): string {
     company_list: { id: 'Daftar perusahaan', en: 'Company list' },
     inactive: { id: 'Nonaktif', en: 'Inactive' },
     section_identity: { id: 'Identitas', en: 'Identity' },
+    section_general: { id: 'Umum', en: 'General' },
+    section_approval: { id: 'Persetujuan', en: 'Approval' },
+    settings_sub: {
+      id: 'Preferensi dashboard & absensi perusahaan.',
+      en: 'Company dashboard and attendance preferences.',
+    },
+    timezone: { id: 'Zona waktu', en: 'Timezone' },
+    timezone_help: { id: 'Contoh: Asia/Jakarta.', en: 'Example: Asia/Jakarta.' },
+    mode_absen: { id: 'Mode absen', en: 'Attendance mode' },
+    mode_selfie: { id: 'Selfie (foto saat absen)', en: 'Selfie (photo at check-in)' },
+    mode_recognition: { id: 'Pengenalan wajah', en: 'Face recognition' },
+    require_hr_final: { id: 'Butuh approval HR final', en: 'Requires final HR approval' },
+    require_hr_final_help: {
+      id: 'Aktifkan bila pengajuan wajib melewati persetujuan HR sebelum selesai.',
+      en: 'Enable when requests must pass HR approval before completion.',
+    },
+    saved_msg: { id: 'Pengaturan tersimpan.', en: 'Settings saved.' },
+    err_timezone_invalid: { id: 'Zona waktu tidak valid', en: 'Invalid timezone' },
     section_coordinates: { id: 'Koordinat & radius', en: 'Coordinates & radius' },
     radius_help: {
       id: 'Jarak maksimal absen dari titik lokasi, dalam meter.',
@@ -1700,5 +1720,72 @@ export class ViewController {
       today,
       page: 'process-logs',
     });
+  }
+
+  private async settingsCompanyId(user: any, src: any): Promise<number | null> {
+    if (user.companyId != null) return user.companyId;
+    const picked = Number(src?.companyId);
+    if (Number.isInteger(picked) && picked > 0 && (await this.prisma.company.findUnique({ where: { id: picked } }))) {
+      return picked;
+    }
+    const first = await this.prisma.company.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
+    return first?.id ?? null;
+  }
+
+  private settingsBack(companyId: number | null, params: Record<string, string> = {}): string {
+    const q = new URLSearchParams(params);
+    if (companyId != null) q.set('companyId', String(companyId));
+    const s = q.toString();
+    return s ? `/ui/settings?${s}` : '/ui/settings';
+  }
+
+  @Get('settings')
+  async settingsPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (user.role === 'SUPERVISOR') return res.redirect('/ui/dashboard');
+    const locale = this.locale(req);
+    const companyId = await this.settingsCompanyId(user, req.query);
+    if (!companyId) return res.redirect('/ui/companies');
+    const row = await this.prisma.companySetting.findFirst({ where: { companyId } });
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    return res.render('settings', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? tr(String(req.query.error), locale) : null,
+      saved: req.query.saved === '1',
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId,
+      companyName: company?.name ?? '-',
+      row: {
+        timezone: row?.timezone ?? 'Asia/Jakarta',
+        tipe_absen: row?.tipeAbsen ?? 'selfie',
+        require_hr_final: row?.requireHrFinal ?? true,
+      },
+      page: 'settings',
+    });
+  }
+
+  @Post('settings')
+  @HttpCode(302)
+  async settingsSave(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (user.role === 'SUPERVISOR') return res.redirect('/ui/dashboard');
+    const companyId = await this.settingsCompanyId(user, body);
+    if (!companyId) return res.redirect('/ui/companies');
+    const timezone = String(body?.timezone ?? '').trim();
+    const tipeAbsen = body?.tipe_absen === 'recognition' ? 'recognition' : 'selfie';
+    if (!timezone || timezone.length > 64) {
+      return res.redirect(this.settingsBack(companyId, { error: 'err_timezone_invalid' }));
+    }
+    const data = { timezone, tipeAbsen, requireHrFinal: body?.require_hr_final === 'on' };
+    const existing = await this.prisma.companySetting.findFirst({ where: { companyId } });
+    if (existing) {
+      await this.prisma.companySetting.update({ where: { id: existing.id }, data });
+    } else {
+      await this.prisma.companySetting.create({ data: { companyId, ...data } });
+    }
+    return res.redirect(this.settingsBack(companyId, { saved: '1' }));
   }
 }

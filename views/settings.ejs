@@ -1,0 +1,106 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input[type="text"], .field select {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    transition: background .15s, border-color .15s;
+  }
+  .field input[type="text"]::placeholder { color: var(--faint); }
+  .field input[type="text"]:hover, .field select:hover { border-color: var(--line); }
+  .field input[type="text"]:focus, .field select:focus { background: var(--card); border-color: var(--brand-2); }
+  .seg { display: flex; gap: .5rem; }
+  .seg-opt {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
+    font-size: .85rem; font-weight: 600; color: var(--label);
+    transition: background .15s, border-color .15s;
+  }
+  .seg-opt:hover { border-color: var(--line); }
+  .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+  .alert.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+  @media (max-width: 640px) { .seg { flex-direction: column; } }
+</style>
+<div class="page-head">
+  <div>
+    <h1><%= t('nav_settings') %></h1>
+    <p class="sub"><%= t('settings_sub') %></p>
+  </div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<% if (saved) { %><div class="alert ok"><%= t('saved_msg') %></div><% } %>
+<div class="card card-pad" style="max-width:640px;">
+  <form method="post" action="/ui/settings">
+    <% if (companies) { %>
+      <div class="form-sec"><%= t('company_label') %></div>
+      <div class="form-grid" style="margin-bottom:1.3rem;">
+        <div class="field full">
+          <select name="companyId">
+            <% companies.forEach(function(c) { %>
+              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+    <% } else { %>
+      <input type="hidden" name="companyId" value="<%= companyId %>" />
+      <p class="help" style="margin:0 0 1rem;"><%= t('company_label') %>: <b><%= companyName %></b></p>
+    <% } %>
+
+    <div class="form-sec <%= companies ? 'blocked' : '' %>"><%= t('section_general') %></div>
+    <div class="form-grid" style="margin-bottom:1.3rem;">
+      <div class="field full"><%= t('timezone') %>
+        <input type="text" name="timezone" maxlength="64" required value="<%= row.timezone %>" placeholder="Asia/Jakarta" />
+        <div class="help"><%= t('timezone_help') %></div>
+      </div>
+      <div class="field full"><%= t('mode_absen') %>
+        <div class="seg">
+          <label class="seg-opt <%= row.tipe_absen !== 'recognition' ? 'on' : '' %>">
+            <input type="radio" name="tipe_absen" value="selfie" <%= row.tipe_absen !== 'recognition' ? 'checked' : '' %> /><%= t('mode_selfie') %>
+          </label>
+          <label class="seg-opt <%= row.tipe_absen === 'recognition' ? 'on' : '' %>">
+            <input type="radio" name="tipe_absen" value="recognition" <%= row.tipe_absen === 'recognition' ? 'checked' : '' %> /><%= t('mode_recognition') %>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-sec blocked"><%= t('section_approval') %></div>
+    <div class="form-grid">
+      <div class="field full"><%= t('require_hr_final') %>
+        <div class="seg">
+          <label class="seg-opt <%= row.require_hr_final ? 'on' : '' %>">
+            <input type="radio" name="require_hr_final" value="on" <%= row.require_hr_final ? 'checked' : '' %> /><%= t('yes') %>
+          </label>
+          <label class="seg-opt <%= !row.require_hr_final ? 'on' : '' %>">
+            <input type="radio" name="require_hr_final" value="off" <%= !row.require_hr_final ? 'checked' : '' %> /><%= t('no') %>
+          </label>
+        </div>
+        <div class="help"><%= t('require_hr_final_help') %></div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><%= t('save') %></button>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+  document.querySelectorAll('.seg input[type="radio"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      var seg = r.closest('.seg');
+      seg.querySelectorAll('.seg-opt').forEach(function (l) {
+        l.classList.toggle('on', l.querySelector('input').checked);
+      });
+    });
+  });
+})();
+</script>
+<%- include('partials/footer') %>
