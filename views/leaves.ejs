@@ -1,28 +1,30 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_leaves') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('employee') %></th>
-      <th><%= t('name') %></th>
-      <th><%= t('date') %></th>
-      <th>Days</th>
-      <th><%= t('status') %></th>
-      <th><%= t('reason') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.nama_lengkap %></td>
-        <td><%= r.jenis %></td>
-        <td><%= r.start_date %> → <%= r.end_date %></td>
-        <td><%= r.total_days %></td>
-        <td><span class="badge <%= r.status %>"><%= r.status %></span></td>
-        <td><%= r.reason %></td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="6" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<%
+  function stCls(s){ s=(s||'').toLowerCase();
+    if(s==='approved'||s==='waiting_hr') return 'green';
+    if(s==='pending') return 'amber';
+    if(s==='rejected'||s==='cancelled'||s==='expired') return 'red';
+    return 'gray'; }
+%>
+<div class="page-head"><div><h1><%= t('nav_leaves') %></h1><p class="sub"><%= rows.length %> pengajuan</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Daftar cuti / izin</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_leaves') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('employee') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th>Days</th><th><%= t('status') %></th><th><%= t('reason') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
+          <td><span class="badge blue"><%= r.jenis %></span></td>
+          <td class="mono" style="white-space:nowrap;"><%= r.start_date %> → <%= r.end_date %></td>
+          <td class="mono"><%= r.total_days %></td>
+          <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
+          <td style="max-width:240px;"><%= r.reason %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

@@ -1,36 +1,40 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_reports') %> — <%= today %></h1>
-<form method="get" action="/ui/reports" style="margin-bottom:.75rem;">
-  <label><%= t('date') %></label>
-  <input type="date" name="tanggal" value="<%= today %>" style="padding:.4rem;border:1px solid #d1d5db;border-radius:4px;" />
-  <button class="small" type="submit" style="margin-left:.4rem;">OK</button>
-</form>
-<% if (!data || !data.rows || data.rows.length === 0) { %>
-  <div class="empty"><%= t('empty') %></div>
-<% } else { %>
-<table>
-  <thead>
-    <tr>
-      <th>NIP</th>
-      <th><%= t('employee') %></th>
-      <th><%= t('checkin') %></th>
-      <th><%= t('checkout') %></th>
-      <th><%= t('status') %></th>
-      <th><%= t('location') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% data.rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.nip || '-' %></td>
-        <td><%= r.nama_lengkap %></td>
-        <td><%= r.absen_in || '-' %></td>
-        <td><%= r.absen_out || '-' %></td>
-        <td><span class="badge"><%= r.kehadiran || '-' %></span> <%= r.status_masuk || '' %> <%= r.status_pulang || '' %></td>
-        <td><%= r.latitude_longtitude_in || '-' %></td>
-      </tr>
-    <% }) %>
-  </tbody>
-</table>
-<% } %>
+<%
+  const rws = (data && data.rows) ? data.rows : [];
+  let h=0, tl=0, ic=0;
+  rws.forEach(function(r){ const k=(r.kehadiran||'').toUpperCase(); if(k==='HADIR')h++; if((r.status_masuk||'').toUpperCase()==='TERLAMAT')tl++; if(k==='IZIN'||k==='CUTI')ic++; });
+%>
+<div class="page-head">
+  <div><h1><%= t('nav_reports') %></h1><p class="sub"><span class="mono"><%= today %></span> · ringkasan harian</p></div>
+</div>
+<div class="kpis" style="grid-template-columns:repeat(4,1fr);">
+  <div class="kpi"><div class="lbl">Total</div><div class="num"><%= rws.length %></div><div class="hint"><%= t('rows_label') %></div></div>
+  <div class="kpi"><div class="lbl"><%= t('present') %></div><div class="num"><%= h %></div><div class="hint">HADIR</div></div>
+  <div class="kpi"><div class="lbl"><%= t('late') %></div><div class="num"><%= tl %></div><div class="hint">TERLAMAT</div></div>
+  <div class="kpi"><div class="lbl"><%= t('on_leave') %></div><div class="num"><%= ic %></div><div class="hint">IZIN / CUTI</div></div>
+</div>
+<div class="card">
+  <form method="get" action="/ui/reports" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
+    <div class="field"><%= t('date') %><input type="date" name="tanggal" value="<%= today %>" /></div>
+    <button class="btn primary" type="submit">OK</button>
+  </form>
+  <% if (!rws.length) { %><div class="empty"><%= t('empty_reports') %></div><% } else { %>
+  <div class="table-toolbar"><b>Hasil</b><span class="count"><%= rws.length %> <%= t('rows_label') %></span></div>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th>NIP</th><th><%= t('employee') %></th><th><%= t('checkin') %></th><th><%= t('checkout') %></th><th><%= t('status') %></th><th><%= t('location') %></th></tr></thead>
+    <tbody>
+      <% rws.forEach(function(r) { %>
+        <tr>
+          <td class="mono"><%= r.nip || '-' %></td>
+          <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
+          <td class="mono"><%= r.absen_in || '—' %></td>
+          <td class="mono"><%= r.absen_out || '—' %></td>
+          <td><span class="badge <%= (r.kehadiran||'').toUpperCase()==='HADIR' ? ((r.status_masuk||'').toUpperCase()==='TERLAMAT'?'orange':'green') : ((r.kehadiran||'').toUpperCase()==='IZIN'||(r.kehadiran||'').toUpperCase()==='CUTI'?'blue':'gray') %>"><%= r.kehadiran || '—' %></span> <span style="font-size:.75rem;color:var(--muted);"><%= r.status_masuk || '' %> <%= r.status_pulang || '' %></span></td>
+          <td class="mono" style="font-size:.76rem;"><%= r.latitude_longtitude_in || '-' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

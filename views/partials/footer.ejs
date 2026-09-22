@@ -1,3 +1,23 @@
-  </main>
+      <div class="foot-note">Absensi Admin<% if (typeof today !== 'undefined' && today) { %> · <%= today %><% } %></div>
+    </div></main>
+  </div>
+</div>
+<button class="scrim" id="scrim" aria-label="Tutup menu"></button>
+<script>
+(function () {
+  var btn = document.getElementById('menuBtn');
+  var scrim = document.getElementById('scrim');
+  if (btn) btn.addEventListener('click', function () { document.body.classList.toggle('side-open'); });
+  if (scrim) scrim.addEventListener('click', function () { document.body.classList.remove('side-open'); });
+  var q = document.getElementById('globalSearch');
+  if (q) q.addEventListener('input', function () {
+    var s = q.value.toLowerCase().trim();
+    document.querySelectorAll('table.tbl tbody tr').forEach(function (tr) {
+      if (!s) { tr.style.display = ''; return; }
+      tr.style.display = tr.textContent.toLowerCase().indexOf(s) !== -1 ? '' : 'none';
+    });
+  });
+})();
+</script>
 </body>
 </html>

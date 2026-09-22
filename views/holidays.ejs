@@ -1,14 +1,16 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_holidays') %></h1>
-<table>
-  <thead>
-    <tr><th><%= t('date') %></th><th><%= t('name') %></th></tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr><td><%= r.tanggal %></td><td><%= r.name %></td></tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="2" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<div class="page-head"><div><h1><%= t('nav_holidays') %></h1><p class="sub"><%= rows.length %> hari libur</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Daftar libur</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_holidays') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('date') %></th><th><%= t('name') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr><td class="mono"><%= r.tanggal %></td><td><b><%= r.name %></b></td></tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

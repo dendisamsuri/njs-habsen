@@ -1,38 +1,35 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_approvals') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('employee') %></th>
-      <th><%= t('name') %></th>
-      <th><%= t('date') %></th>
-      <th><%= t('status') %></th>
-      <th><%= t('reason') %></th>
-      <th><%= t('actions') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.nama_lengkap %></td>
-        <td><%= r.jenis %></td>
-        <td><%= r.start_date %> → <%= r.end_date %></td>
-        <td><span class="badge <%= r.status %>"><%= r.status %></span></td>
-        <td><%= r.reason %></td>
-        <td>
-          <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide">
-            <input type="hidden" name="decision" value="approved" />
-            <button class="small ok" type="submit"><%= t('approve') %></button>
-          </form>
-          <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide">
-            <input type="hidden" name="decision" value="rejected" />
-            <input type="hidden" name="comment" value="Ditolak via dashboard" />
-            <button class="small no" type="submit"><%= t('reject') %></button>
-          </form>
-        </td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="6" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<%
+  function stCls(s){ s=(s||'').toLowerCase();
+    if(s==='approved'||s==='waiting_hr') return 'green';
+    if(s==='pending') return 'amber';
+    if(s==='rejected'||s==='cancelled'||s==='expired') return 'red';
+    return 'gray'; }
+%>
+<div class="page-head">
+  <div><h1><%= t('nav_approvals') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
+</div>
+<div class="card">
+  <div class="table-toolbar"><b>Antrean persetujuan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_approvals') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('employee') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th><%= t('status') %></th><th><%= t('reason') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
+          <td><span class="badge blue"><%= r.jenis %></span></td>
+          <td class="mono" style="white-space:nowrap;"><%= r.start_date %> → <%= r.end_date %></td>
+          <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
+          <td style="max-width:240px;"><%= r.reason %></td>
+          <td><div class="row-actions">
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>
+          </div></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

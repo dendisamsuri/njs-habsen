@@ -1,32 +1,28 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_users') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('name') %></th>
-      <th><%= t('email') %></th>
-      <th>NIP</th>
-      <th><%= t('role') %></th>
-      <th><%= t('position') %></th>
-      <th><%= t('location') %></th>
-      <th><%= t('lead') %></th>
-      <th><%= t('active') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.nama_lengkap %></td>
-        <td><%= r.email %></td>
-        <td><%= r.nip %></td>
-        <td><%= r.role %></td>
-        <td><%= r.posisi %></td>
-        <td><%= r.lokasi %></td>
-        <td><%= r.lead %></td>
-        <td><span class="badge <%= r.is_active ? 'approved' : 'inactive' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="8" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<%
+  const act = rows.filter(function(r){return r.is_active;}).length;
+%>
+<div class="page-head"><div><h1><%= t('nav_users') %></h1><p class="sub"><%= act %> aktif · <%= rows.length %> total</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Daftar karyawan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_users') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('name') %></th><th><%= t('email') %></th><th>NIP</th><th><%= t('role') %></th><th><%= t('position') %></th><th><%= t('location') %></th><th><%= t('lead') %></th><th><%= t('active') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><div><b><%= r.nama_lengkap %></b><span><%= r.role %></span></div></div></td>
+          <td style="font-size:.8rem;"><%= r.email %></td>
+          <td class="mono"><%= r.nip %></td>
+          <td><span class="badge gray"><%= r.role %></span></td>
+          <td style="font-size:.82rem;"><%= r.posisi %></td>
+          <td style="font-size:.82rem;"><%= r.lokasi %></td>
+          <td style="font-size:.82rem;"><%= r.lead %></td>
+          <td><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

@@ -1,28 +1,25 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_schedules') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('code') %></th>
-      <th><%= t('name') %></th>
-      <th><%= t('active') %></th>
-      <th>Details</th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.code %></td>
-        <td><%= r.name %></td>
-        <td><span class="badge <%= r.is_active ? 'approved' : 'inactive' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
-        <td>
-          <% r.details.forEach(function(d) { %>
-            <div style="font-size:.78rem;"><%= d.day %>: <%= d.time_in %>–<%= d.time_out %> (±<%= d.tolerance %>m)</div>
-          <% }) %>
-        </td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="4" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<div class="page-head"><div><h1><%= t('nav_schedules') %></h1><p class="sub"><%= rows.length %> jadwal</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Daftar jadwal</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_schedules') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('active') %></th><th>Details</th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td class="mono"><%= r.code %></td>
+          <td><b><%= r.name %></b><div style="font-size:.74rem;color:var(--muted);"><%= r.detail_count %> hari</div></td>
+          <td><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
+          <td>
+            <% r.details.forEach(function(d) { %>
+              <div style="font-size:.78rem;"><span class="badge gray" style="min-width:52px;justify-content:center;"><%= d.day %></span> <span class="mono"><%= d.time_in %>–<%= d.time_out %></span> <span style="color:var(--muted);">±<%= d.tolerance %>m</span></div>
+            <% }) %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

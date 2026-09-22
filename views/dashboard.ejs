@@ -1,29 +1,110 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_dashboard') %> — <%= t('today') %> <%= today %></h1>
-<% if (!report || !report.rows || report.rows.length === 0) { %>
-  <div class="empty"><%= t('empty') %></div>
-<% } else { %>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('employee') %></th>
-      <th><%= t('checkin') %></th>
-      <th><%= t('checkout') %></th>
-      <th><%= t('status') %></th>
-      <th><%= t('position') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% report.rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.nama_lengkap %></td>
-        <td><%= r.absen_in || '-' %></td>
-        <td><%= r.absen_out || '-' %></td>
-        <td><span class="badge"><%= r.kehadiran || '-' %></span> <%= r.status_masuk || '' %></td>
-        <td><%= r.posisi_nama || '-' %></td>
-      </tr>
-    <% }) %>
-  </tbody>
-</table>
-<% } %>
+<%
+  const rows = (report && report.rows) ? report.rows : [];
+  const total = rows.length;
+  let hadir = 0, telat = 0, izinCuti = 0, sudah = 0;
+  rows.forEach(function(r){
+    const k = (r.kehadiran || '').toUpperCase();
+    const sm = (r.status_masuk || '').toUpperCase();
+    if (r.absen_in) sudah++;
+    if (k === 'HADIR') hadir++;
+    if (sm === 'TERLAMAT') telat++;
+    if (k === 'IZIN' || k === 'CUTI') izinCuti++;
+  });
+  const belum = total - sudah;
+  const pct = total ? Math.round((hadir / total) * 100) : 0;
+  function badgeCls(k, sm){
+    k = (k || '').toUpperCase(); sm = (sm || '').toUpperCase();
+    if (!k) return 'gray';
+    if (k === 'HADIR' && sm === 'TERLAMAT') return 'orange';
+    if (k === 'HADIR') return 'green';
+    if (k === 'IZIN' || k === 'CUTI') return 'blue';
+    return 'gray';
+  }
+  function inisial(n){ return (n || '?').trim().charAt(0).toUpperCase(); }
+%>
+
+<div class="page-head">
+  <div>
+    <h1><%= t('nav_dashboard') %></h1>
+    <p class="sub"><%= t('today') %> · <span class="mono"><%= today %></span> — <%= t('attendance_sub') %></p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/ui/reports"><%= t('open_reports') %></a>
+    <a class="btn primary" href="/ui/approvals"><%= t('need_approval') %></a>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="lbl"><%= t('total_emp') %></div><div class="num"><%= total %></div></div>
+  <div class="kpi"><div class="lbl"><%= t('present') %></div><div class="num"><%= hadir %></div><div class="hint"><%= pct %>%</div></div>
+  <div class="kpi"><div class="lbl"><%= t('late') %></div><div class="num"><%= telat %></div><div class="hint">TERLAMAT</div></div>
+  <div class="kpi"><div class="lbl"><%= t('on_leave') %></div><div class="num"><%= izinCuti %></div><div class="hint">IZIN / CUTI</div></div>
+  <div class="kpi"><div class="lbl"><%= t('not_yet') %></div><div class="num"><%= belum %></div></div>
+</div>
+
+<div class="split">
+  <div class="card">
+    <div class="table-toolbar">
+      <b><%= t('attendance_today') %></b>
+      <span class="count"><%= t('showing') %> <%= rows.length %> <%= t('from') %> <%= (report && report.pagination && report.pagination.total_rows) || rows.length %></span>
+    </div>
+    <% if (!rows.length) { %>
+      <div class="empty"><%= t('empty_dashboard') %></div>
+    <% } else { %>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th><%= t('employee') %></th>
+            <th><%= t('checkin') %></th>
+            <th><%= t('checkout') %></th>
+            <th><%= t('status') %></th>
+            <th><%= t('position') %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function(r) { %>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="mini-avatar"><%= inisial(r.nama_lengkap) %></div>
+                  <div><b><%= r.nama_lengkap %></b><span class="mono"><%= r.nip || '-' %></span></div>
+                </div>
+              </td>
+              <td class="mono"><%= r.absen_in || '—' %></td>
+              <td class="mono"><%= r.absen_out || '—' %></td>
+              <td><span class="badge <%= badgeCls(r.kehadiran, r.status_masuk) %>"><%= r.kehadiran || t('not_yet') %></span><div style="font-size:.74rem;color:var(--muted);margin-top:.15rem;"><%= r.status_masuk || '' %></div></td>
+              <td style="font-size:.82rem;"><%= r.posisi_nama || '-' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="stack">
+    <div class="card card-pad">
+      <b><%= t('hadir_pct') %></b>
+      <div class="meter"><i style="width:<%= pct %>%"></i></div>
+      <p style="font-size:.82rem;color:var(--muted);margin:.5rem 0 0;"><b style="color:var(--ink);"><%= pct %>%</b> · <%= hadir %> / <%= total %> <%= t('present') %></p>
+      <div class="legend" style="margin-top:.6rem;">
+        <span class="badge green"><%= t('present') %> <%= hadir %></span>
+        <span class="badge orange"><%= t('late') %> <%= telat %></span>
+        <span class="badge blue"><%= t('on_leave') %> <%= izinCuti %></span>
+      </div>
+    </div>
+    <div class="card card-pad">
+      <b><%= t('quick_links') %></b>
+      <div class="quick-links" style="margin-top:.6rem;">
+        <a href="/ui/approvals"><span><%= t('need_approval') %></span></a>
+        <a href="/ui/reports"><span><%= t('open_reports') %></span></a>
+        <a href="/ui/users"><span><%= t('manage_users') %></span></a>
+        <a href="/ui/locations"><span><%= t('manage_locations') %></span></a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <%- include('partials/footer') %>

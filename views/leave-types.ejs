@@ -1,28 +1,23 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_leave_types') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('code') %></th>
-      <th><%= t('name') %></th>
-      <th><%= t('category') %></th>
-      <th><%= t('deductible') %></th>
-      <th><%= t('attachment_req') %></th>
-      <th><%= t('active') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.code %></td>
-        <td><%= r.name %></td>
-        <td><%= r.category %></td>
-        <td><%= r.is_deductible ? 'Y' : 'N' %></td>
-        <td><%= r.requires_attachment ? 'Y' : 'N' %></td>
-        <td><span class="badge <%= r.is_active ? 'approved' : 'inactive' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="6" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<div class="page-head"><div><h1><%= t('nav_leave_types') %></h1><p class="sub"><%= rows.length %> tipe</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Tipe cuti</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_leave_types') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('category') %></th><th><%= t('deductible') %></th><th><%= t('attachment_req') %></th><th><%= t('active') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <td class="mono"><%= r.code %></td>
+          <td><b><%= r.name %></b></td>
+          <td><span class="badge gray"><%= r.category %></span></td>
+          <td><%= r.is_deductible ? 'Y' : 'N' %></td>
+          <td><%= r.requires_attachment ? 'Y' : 'N' %></td>
+          <td><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

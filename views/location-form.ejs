@@ -1,57 +1,45 @@
 <%- include('partials/header') %>
 <style>
-  #MapLocation { width: 100%; height: 460px; min-height: 320px; border-radius: 6px; overflow: hidden; background: #e5e7eb; }
+  #MapLocation { width: 100%; height: 420px; min-height: 300px; border-radius: 12px; overflow: hidden; background: #e5e7eb; border: 1px solid var(--line); }
   #MapLocation img { max-width: none !important; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.5rem; }
-  .form-grid label { display: block; margin-bottom: .8rem; font-size: .85rem; }
-  .form-grid input, .form-grid textarea, .form-grid select { display: block; width: 100%; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: .88rem; }
-  .form-grid .full { grid-column: 1 / -1; }
-  @media (max-width: 767px) { .form-grid { grid-template-columns: 1fr; } #MapLocation { height: 360px !important; } }
+  @media (max-width: 900px) { #MapLocation { height: 340px !important; } }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<h1><%= row ? t('edit') : t('add') %> — <%= t('nav_locations') %></h1>
-<% if (typeof error !== 'undefined' && error) { %><p class="error"><%= error %></p><% } %>
-<form method="post" action="<%= row ? '/ui/locations/' + row.id : '/ui/locations' %>">
-  <div class="form-grid">
-    <div>
-      <label><%= t('code') %>
-        <input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="(auto)">
-      </label>
-      <label><%= t('location_name') %>
-        <input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>">
-      </label>
-      <label><%= t('address') %>
-        <textarea name="address" maxlength="500" rows="2" required><%= row && row.address ? row.address : '' %></textarea>
-      </label>
-      <label>Latitude
-        <input id="latitude" name="latitude" type="number" step="any" min="-90" max="90" required
-               value="<%= row && (row.latitude || row.latitude === 0) ? row.latitude : '' %>">
-      </label>
-      <label>Longitude
-        <input id="longitude" name="longitude" type="number" step="any" min="-180" max="180" required
-               value="<%= row && (row.longitude || row.longitude === 0) ? row.longitude : '' %>">
-      </label>
-      <label><%= t('radius') %>
-        <input name="radius_meters" type="number" min="1" step="1" required
-               value="<%= row && row.radiusMeters ? row.radiusMeters : 900 %>">
-      </label>
-      <label><%= t('active_label') %>
-        <select name="status">
-          <option value="Y" <%= row && row.status === 'Y' ? 'selected' : (!row ? 'selected' : '') %>><%= t('yes') %></option>
-          <option value="N" <%= row && row.status === 'N' ? 'selected' : '' %>><%= t('no') %></option>
-        </select>
-      </label>
-    </div>
-    <div>
-      <label><%= t('map_pick') %>
-        <div id="MapLocation"></div>
-      </label>
-    </div>
+<div class="page-head">
+  <div>
+    <h1><%= row ? t('edit') : t('add') %> — <%= t('nav_locations') %></h1>
   </div>
-  <hr>
-  <button type="submit"><%= t('save') %></button>
-  <a href="/ui/locations"><%= t('back') %></a>
-</form>
+  <div class="page-actions"><a class="btn" href="/ui/locations">← <%= t('back') %></a></div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="split" style="grid-template-columns:1fr 1.1fr;">
+  <div class="card card-pad">
+    <form method="post" action="<%= row ? '/ui/locations/' + row.id : '/ui/locations' %>">
+      <div class="form-grid">
+        <div class="field"><%= t('code') %><input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="(auto)" /></div>
+        <div class="field"><%= t('active_label') %>
+          <select name="status">
+            <option value="Y" <%= row && row.status === 'Y' ? 'selected' : (!row ? 'selected' : '') %>><%= t('yes') %></option>
+            <option value="N" <%= row && row.status === 'N' ? 'selected' : '' %>><%= t('no') %></option>
+          </select>
+        </div>
+        <div class="field full"><%= t('location_name') %><input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" /></div>
+        <div class="field full"><%= t('address') %><textarea name="address" maxlength="500" rows="2" required><%= row && row.address ? row.address : '' %></textarea></div>
+        <div class="field">Latitude<input id="latitude" name="latitude" type="number" step="any" min="-90" max="90" required value="<%= row && (row.latitude || row.latitude === 0) ? row.latitude : '' %>" /></div>
+        <div class="field">Longitude<input id="longitude" name="longitude" type="number" step="any" min="-180" max="180" required value="<%= row && (row.longitude || row.longitude === 0) ? row.longitude : '' %>" /></div>
+        <div class="field full"><%= t('radius') %><input name="radius_meters" type="number" min="1" step="1" required value="<%= row && row.radiusMeters ? row.radiusMeters : 900 %>" /></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn primary" type="submit"><%= t('save') %></button>
+        <a class="btn" href="/ui/locations"><%= t('back') %></a>
+      </div>
+    </form>
+  </div>
+  <div class="card card-pad">
+    <b><%= t('map_pick') %></b>
+    <div id="MapLocation" style="margin-top:.6rem;"></div>
+  </div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
@@ -70,6 +58,7 @@
   }
   marker.on('dragend', function () { sync(marker.getLatLng()); });
   map.on('click', function (e) { marker.setLatLng(e.latlng); sync(e.latlng); });
+  setTimeout(function(){ map.invalidateSize(); }, 200);
 })();
 </script>
 <%- include('partials/footer') %>

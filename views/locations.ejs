@@ -1,45 +1,40 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_locations') %></h1>
-<% if (typeof error !== 'undefined' && error) { %><p class="error"><%= error %></p><% } %>
-<% if (typeof canEdit !== 'undefined' && canEdit) { %>
-<p><a class="btn" href="/ui/locations/new"><%= t('add') %></a></p>
-<% } %>
-<table>
-  <thead>
-    <tr>
-      <th>No</th>
-      <th><%= t('location_name') %></th>
-      <th><%= t('address') %></th>
-      <th><%= t('radius') %></th>
-      <th style="text-align:center"><%= t('active_label') %></th>
-      <th style="text-align:center"><%= t('actions') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r, i) { %>
-      <tr>
-        <td><%= i + 1 %></td>
-        <td><%= r.name %></td>
-        <td><%= r.address %></td>
-        <td><%= r.radiusMeters %> m</td>
-        <td style="text-align:center">
-          <span class="badge <%= r.status === 'Y' ? 'approved' : 'inactive' %>"><%= r.status === 'Y' ? t('yes') : t('no') %></span>
-        </td>
-        <td class="actions" style="text-align:center">
-          <% if (typeof canEdit !== 'undefined' && canEdit) { %>
-          <a href="/ui/locations/<%= r.id %>/edit"><%= t('edit') %></a>
-          <form method="post" action="/ui/locations/<%= r.id %>/toggle" style="display:inline">
-            <button type="submit"><%= t('toggle') %></button>
-          </form>
-          <form method="post" action="/ui/locations/<%= r.id %>/delete" style="display:inline"
-                onsubmit="return confirm('<%= t('confirm_delete') %>')">
-            <button type="submit" class="danger"><%= t('delete') %></button>
-          </form>
-          <% } else { %>-<% } %>
-        </td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="6" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<%
+  const on = rows.filter(function(r){ return r.status === 'Y'; }).length;
+%>
+<div class="page-head">
+  <div><h1><%= t('nav_locations') %></h1><p class="sub"><%= on %> aktif · <%= rows.length %> total</p></div>
+  <div class="page-actions">
+    <% if (typeof canEdit !== 'undefined' && canEdit) { %><a class="btn primary" href="/ui/locations/new"><%= t('add') %></a><% } %>
+  </div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card">
+  <div class="table-toolbar"><b>Daftar lokasi</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_locations') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th>No</th><th><%= t('location_name') %></th><th><%= t('address') %></th><th><%= t('radius') %></th><th style="text-align:center;"><%= t('active_label') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r, i) { %>
+        <tr>
+          <td class="mono"><%= i + 1 %></td>
+          <td><b><%= r.name %></b><div style="font-size:.74rem;color:var(--muted);" class="mono"><%= r.code || '' %></div></td>
+          <td style="max-width:260px;font-size:.82rem;"><%= r.address %></td>
+          <td class="mono"><%= r.radiusMeters %> m</td>
+          <td style="text-align:center;"><span class="badge <%= r.status === 'Y' ? 'green' : 'red' %>"><%= r.status === 'Y' ? t('yes') : t('no') %></span></td>
+          <td style="text-align:center;">
+            <% if (typeof canEdit !== 'undefined' && canEdit) { %>
+            <div class="row-actions">
+              <a class="btn" href="/ui/locations/<%= r.id %>/edit"><%= t('edit') %></a>
+              <form method="post" action="/ui/locations/<%= r.id %>/toggle" style="display:inline"><button type="submit"><%= t('toggle') %></button></form>
+              <form method="post" action="/ui/locations/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('confirm_delete') %>')"><button type="submit" class="danger"><%= t('delete') %></button></form>
+            </div>
+            <% } else { %>-<% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

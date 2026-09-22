@@ -1,38 +1,38 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_process_logs') %> — <%= today %></h1>
-<form method="get" action="/ui/process-logs" style="margin-bottom:.75rem;">
-  <label><%= t('date') %></label>
-  <input type="date" name="date" value="<%= today %>" style="padding:.4rem;border:1px solid #d1d5db;border-radius:4px;" />
-  <button class="small" type="submit" style="margin-left:.4rem;">OK</button>
-</form>
-<% if (!data || !data.employees || data.employees.length === 0) { %>
-  <div class="empty"><%= t('empty') %></div>
-<% } else { %>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('employee') %></th>
-      <th><%= t('location') %></th>
-      <th>Attempts</th>
-      <th>OK</th>
-      <th>Fail</th>
-      <th><%= t('started') %></th>
-      <th><%= t('flow_id') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% data.employees.forEach(function(e) { %>
-      <tr>
-        <td><%= e.nama_lengkap %></td>
-        <td><%= e.lokasi_nama || '-' %></td>
-        <td><%= e.attempt_count %></td>
-        <td><%= e.success_count %></td>
-        <td><%= e.failed_count %></td>
-        <td><%= new Date(e.latest_started_at).toISOString().slice(0,16).replace('T',' ') %></td>
-        <td style="font-size:.7rem;"><%= (e.attempts[0] && e.attempts[0].flow_id) || '-' %></td>
-      </tr>
-    <% }) %>
-  </tbody>
-</table>
-<% } %>
+<%
+  const emps = (data && data.employees) ? data.employees : [];
+  let att=0, ok=0, fail=0;
+  emps.forEach(function(e){ att+=e.attempt_count||0; ok+=e.success_count||0; fail+=e.failed_count||0; });
+%>
+<div class="page-head"><div><h1><%= t('nav_process_logs') %></h1><p class="sub"><span class="mono"><%= today %></span> · jejak percobaan absen</p></div></div>
+<div class="kpis" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi"><div class="lbl">Attempts</div><div class="num"><%= att %></div><div class="hint">total</div></div>
+  <div class="kpi"><div class="lbl">OK</div><div class="num"><%= ok %></div><div class="hint">berhasil</div></div>
+  <div class="kpi"><div class="lbl">Fail</div><div class="num"><%= fail %></div><div class="hint">gagal</div></div>
+</div>
+<div class="card">
+  <form method="get" action="/ui/process-logs" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
+    <div class="field"><%= t('date') %><input type="date" name="date" value="<%= today %>" /></div>
+    <button class="btn primary" type="submit">OK</button>
+  </form>
+  <% if (!emps.length) { %><div class="empty"><%= t('empty_logs') %></div><% } else { %>
+  <div class="table-toolbar"><b>Jejak proses</b><span class="count"><%= emps.length %> <%= t('rows_label') %></span></div>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('employee') %></th><th><%= t('location') %></th><th>Attempts</th><th>OK</th><th>Fail</th><th><%= t('started') %></th><th><%= t('flow_id') %></th></tr></thead>
+    <tbody>
+      <% emps.forEach(function(e) { %>
+        <tr>
+          <td><div class="cell-main"><div class="mini-avatar"><%= (e.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= e.nama_lengkap %></b></div></td>
+          <td style="font-size:.82rem;"><%= e.lokasi_nama || '-' %></td>
+          <td class="mono"><%= e.attempt_count %></td>
+          <td><span class="badge green"><%= e.success_count %></span></td>
+          <td><span class="badge <%= (e.failed_count||0) > 0 ? 'red' : 'gray' %>"><%= e.failed_count %></span></td>
+          <td class="mono" style="white-space:nowrap;"><%= new Date(e.latest_started_at).toISOString().slice(0,16).replace('T',' ') %></td>
+          <td class="mono" style="font-size:.7rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;"><%= (e.attempts[0] && e.attempts[0].flow_id) || '-' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>

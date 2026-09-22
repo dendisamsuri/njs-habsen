@@ -1,24 +1,24 @@
 <%- include('partials/header') %>
-<h1><%= t('nav_notifications') %></h1>
-<table>
-  <thead>
-    <tr>
-      <th><%= t('title') %></th>
-      <th><%= t('reason') %></th>
-      <th><%= t('date') %></th>
-      <th><%= t('status') %></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% rows.forEach(function(r) { %>
-      <tr>
-        <td><%= r.title %></td>
-        <td><%= r.body %></td>
-        <td><%= r.created_at %></td>
-        <td><span class="badge <%= r.is_read ? 'approved' : 'pending' %>"><%= r.is_read ? 'read' : t('unread') %></span></td>
-      </tr>
-    <% }) %>
-    <% if (rows.length === 0) { %><tr><td colspan="4" class="empty"><%= t('empty') %></td></tr><% } %>
-  </tbody>
-</table>
+<%
+  const unread = rows.filter(function(r){ return !r.is_read; }).length;
+%>
+<div class="page-head"><div><h1><%= t('nav_notifications') %></h1><p class="sub"><%= unread %> belum dibaca · <%= rows.length %> total</p></div></div>
+<div class="card">
+  <div class="table-toolbar"><b>Notifikasi</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= t('empty_notifications') %></div><% } else { %>
+  <div class="table-wrap"><table class="tbl">
+    <thead><tr><th><%= t('title') %></th><th><%= t('reason') %></th><th><%= t('date') %></th><th><%= t('status') %></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr style="<%= r.is_read ? '' : 'background:#fffbeb;' %>">
+          <td><b><%= r.title %></b></td>
+          <td style="max-width:280px;"><%= r.body %></td>
+          <td class="mono" style="white-space:nowrap;"><%= r.created_at %></td>
+          <td><span class="badge <%= r.is_read ? 'green' : 'amber' %>"><%= r.is_read ? 'read' : t('unread') %></span></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <% } %>
+</div>
 <%- include('partials/footer') %>
