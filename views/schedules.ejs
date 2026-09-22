@@ -4,12 +4,13 @@
   <div class="table-toolbar"><b>Daftar jadwal</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_schedules') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('active') %></th><th>Details</th></tr></thead>
+    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th><th><%= t('active') %></th><th>Details</th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
         <tr>
           <td class="mono"><%= r.code %></td>
           <td><b><%= r.name %></b><div style="font-size:.74rem;color:var(--muted);"><%= r.detail_count %> hari</div></td>
+          <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
           <td>
             <% r.details.forEach(function(d) { %>

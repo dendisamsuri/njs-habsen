@@ -12,7 +12,8 @@ const MONTHS_ID = [
 const WEEKLY_OFF = [0]; // Sunday default weekly off
 
 export interface ReportScope {
-  companyId: number;
+  // null = platform admin, no tenant filter
+  companyId: number | null;
   supervisorUserId?: number | null; // when role SUPERVISOR → subtree only
 }
 
@@ -27,8 +28,13 @@ export class ReportsService {
     return (this.prisma as any).scoped();
   }
 
+  // Prisma rejects companyId: null — omit the filter instead.
+  private cw(scope: ReportScope) {
+    return scope.companyId == null ? {} : { companyId: scope.companyId };
+  }
+
   private async scopeUserIds(scope: ReportScope): Promise<number[] | null> {
-    if (!scope.supervisorUserId) return null;
+    if (!scope.supervisorUserId || scope.companyId == null) return null;
     return this.users.subtreeIds(scope.companyId, scope.supervisorUserId);
   }
 
@@ -39,7 +45,7 @@ export class ReportsService {
       c.position.findMany({ orderBy: { name: 'asc' } }),
       c.user.findMany({
         where: {
-          companyId: scope.companyId,
+          ...this.cw(scope),
           deletedAt: null,
           isActive: true,
           ...(scope.supervisorUserId
@@ -62,11 +68,11 @@ export class ReportsService {
     };
   }
 
-  private async holidaysMap(companyId: number, startIso: string, endIso: string) {
+  private async holidaysMap(companyId: number | null, startIso: string, endIso: string) {
     const c = this.c();
     const rows = await c.holiday.findMany({
       where: {
-        companyId,
+        ...(companyId == null ? {} : { companyId }),
         date: { gte: new Date(startIso), lte: new Date(endIso) },
       },
     });
@@ -114,7 +120,7 @@ export class ReportsService {
     const c = this.c();
     const scopeIds = await this.scopeUserIds(scope);
     const where: any = {
-      companyId: scope.companyId,
+      ...this.cw(scope),
       deletedAt: null,
       isActive: true,
       ...(scopeIds ? { id: { in: scopeIds } } : {}),
@@ -137,7 +143,7 @@ export class ReportsService {
     const dates = this.listDates(params.start_date, params.end_date);
     const attendance = await c.attendances.findMany({
       where: {
-        companyId: scope.companyId,
+        ...this.cw(scope),
         tanggal: { gte: new Date(params.start_date), lte: new Date(params.end_date) },
         ...(params.user_id ? { userId: params.user_id } : {}),
         userId: params.user_id
@@ -156,7 +162,7 @@ export class ReportsService {
     // approved leaves for special status
     const leaves = await c.leaveRequest.findMany({
       where: {
-        companyId: scope.companyId,
+        ...this.cw(scope),
         status: 'approved',
         deletedAt: null,
         startDate: { lte: new Date(params.end_date) },
@@ -166,7 +172,7 @@ export class ReportsService {
     });
     const ros = await c.replacementOff.findMany({
       where: {
-        companyId: scope.companyId,
+        ...this.cw(scope),
         status: 'approved',
         deletedAt: null,
         originalDate: { gte: new Date(params.start_date), lte: new Date(params.end_date) },
@@ -317,7 +323,7 @@ export class ReportsService {
     const c = this.c();
     const scopeIds = await this.scopeUserIds(scope);
     const where: any = {
-      companyId: scope.companyId,
+      ...this.cw(scope),
       deletedAt: null,
       isActive: true,
       ...(scopeIds ? { id: { in: scopeIds } } : {}),
@@ -336,7 +342,7 @@ export class ReportsService {
     });
     const atts = await c.attendances.findMany({
       where: {
-        companyId: scope.companyId,
+        ...this.cw(scope),
         tanggal: new Date(params.tanggal),
         userId: { in: users.map((u: any) => u.id) },
       },
@@ -396,13 +402,13 @@ export class ReportsService {
     const user = await c.user.findFirst({
       where: {
         id: params.employee_id,
-        companyId: scope.companyId,
+        ...this.cw(scope),
         deletedAt: null,
       },
       include: { position: true },
     });
     if (!user) throw err('USER_NOT_FOUND', 404);
-    if (scope.supervisorUserId && scope.supervisorUserId !== user.id) {
+    if (scope.supervisorUserId && scope.companyId != null && scope.supervisorUserId !== user.id) {
       const ids = await this.users.subtreeIds(scope.companyId, scope.supervisorUserId);
       if (!ids.includes(user.id)) throw err('SUPERVISOR_SCOPE_DENIED', 403);
     }
@@ -411,7 +417,7 @@ export class ReportsService {
     const dates = this.listDates(start, end);
     const atts = await c.attendances.findMany({
       where: {
-        companyId: scope.companyId,
+        ...this.cw(scope),
         userId: user.id,
         tanggal: { gte: new Date(start), lte: new Date(end) },
       },
@@ -529,7 +535,7 @@ export class ReportsService {
     end.setDate(end.getDate() + 1);
 
     const where: any = {
-      companyId: scope.companyId,
+      ...this.cw(scope),
       createdAt: { gte: start, lt: end },
       ...(params.employee_id ? { userId: params.employee_id } : {}),
     };
@@ -652,7 +658,7 @@ export class ReportsService {
     const scopeIds = await this.scopeUserIds(scope);
     const where: any = {
       id: input.absen_id,
-      companyId: scope.companyId,
+      ...this.cw(scope),
       ...(scopeIds ? { userId: { in: scopeIds } } : {}),
     };
 
@@ -706,7 +712,7 @@ export class ReportsService {
         });
         await tx.attendanceCorrectionAudit.create({
           data: {
-            companyId: scope.companyId,
+            companyId: row.companyId,
             attendanceId: row.id,
             actorId,
             before: before as any,
@@ -755,7 +761,7 @@ export class ReportsService {
     const c = this.c();
     const scopeIds = await this.scopeUserIds(scope);
     const userWhere: any = {
-      companyId: scope.companyId,
+      ...this.cw(scope),
       deletedAt: null,
       ...(scopeIds ? { id: { in: scopeIds } } : {}),
       ...(params.nip ? { nip: params.nip } : {}),
@@ -766,7 +772,7 @@ export class ReportsService {
 
     if (params.tanggal) {
       const row = await c.attendances.findFirst({
-        where: { companyId: scope.companyId, userId: user.id, tanggal: new Date(params.tanggal) },
+        where: { ...this.cw(scope), userId: user.id, tanggal: new Date(params.tanggal) },
       });
       if (!row) throw err('ATTENDANCE_NOT_FOUND', 404);
       return {
@@ -791,7 +797,7 @@ export class ReportsService {
     if (params.start_date && params.end_date) {
       const rows = await c.attendances.findMany({
         where: {
-          companyId: scope.companyId,
+          ...this.cw(scope),
           userId: user.id,
           tanggal: { gte: new Date(params.start_date), lte: new Date(params.end_date) },
         },

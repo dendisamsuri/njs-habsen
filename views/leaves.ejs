@@ -11,11 +11,12 @@
   <div class="table-toolbar"><b>Daftar cuti / izin</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_leaves') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('employee') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th>Days</th><th><%= t('status') %></th><th><%= t('reason') %></th></tr></thead>
+    <thead><tr><th><%= t('employee') %></th><th><%= t('company_label') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th>Days</th><th><%= t('status') %></th><th><%= t('reason') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
         <tr>
           <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
+          <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge blue"><%= r.jenis %></span></td>
           <td class="mono" style="white-space:nowrap;"><%= r.start_date %> → <%= r.end_date %></td>
           <td class="mono"><%= r.total_days %></td>

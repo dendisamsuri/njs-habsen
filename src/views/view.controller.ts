@@ -67,6 +67,7 @@ function tr(key: string, locale: string): string {
     position: { id: 'Posisi', en: 'Position' },
     location: { id: 'Lokasi', en: 'Location' },
     lead: { id: 'Atasan', en: 'Supervisor' },
+    company_label: { id: 'Perusahaan', en: 'Company' },
     active: { id: 'Aktif', en: 'Active' },
     code: { id: 'Kode', en: 'Code' },
     radius: { id: 'Radius (m)', en: 'Radius (m)' },
@@ -223,6 +224,18 @@ export class ViewController {
     return user;
   }
 
+  // PLATFORM_ADMIN has no company: list across all tenants, other roles stay scoped.
+  private tenantWhere(user: any, extra: Record<string, unknown> = {}) {
+    return { ...extra, ...(user.companyId == null ? {} : { companyId: user.companyId }) };
+  }
+
+  private async companyOptions() {
+    return this.prisma.company.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  }
+
   @Get()
   root(@Req() req: Request, @Res() res: Response) {
     if ((req as any).cookies?.[COOKIE]) return res.redirect('/ui/dashboard');
@@ -319,8 +332,13 @@ export class ViewController {
     if (user.role === 'SUPERVISOR') return res.redirect('/ui/dashboard');
     const locale = this.locale(req);
     const rows = await this.prisma.user.findMany({
-      where: { companyId: user.companyId, deletedAt: null },
-      include: { position: true, location: true, directLead: { select: { namaLengkap: true } } },
+      where: this.tenantWhere(user, { deletedAt: null }),
+      include: {
+        position: true,
+        location: true,
+        directLead: { select: { namaLengkap: true } },
+        company: { select: { name: true } },
+      },
       orderBy: { namaLengkap: 'asc' },
       take: 200,
     });
@@ -333,6 +351,7 @@ export class ViewController {
         email: u.email,
         nip: u.nip ?? '-',
         role: u.role,
+        company: u.company?.name ?? '-',
         posisi: u.position?.name ?? '-',
         lokasi: u.location?.name ?? '-',
         lead: u.directLead?.namaLengkap ?? '-',
@@ -348,8 +367,12 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.leaveRequest.findMany({
-      where: { companyId: user.companyId, deletedAt: null },
-      include: { leaveType: true, user: { select: { namaLengkap: true } } },
+      where: this.tenantWhere(user, { deletedAt: null }),
+      include: {
+        leaveType: true,
+        user: { select: { namaLengkap: true } },
+        company: { select: { name: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -359,6 +382,7 @@ export class ViewController {
       rows: rows.map((r) => ({
         id: r.id,
         nama_lengkap: r.user.namaLengkap,
+        company: r.company?.name ?? '-',
         jenis: r.leaveType.name,
         start_date: r.startDate.toISOString().slice(0, 10),
         end_date: r.endDate.toISOString().slice(0, 10),
@@ -376,13 +400,16 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.leaveRequest.findMany({
-      where: {
-        companyId: user.companyId,
+      where: this.tenantWhere(user, {
         deletedAt: null,
         status: { in: ['pending', 'waiting_hr'] as any },
         ...(user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {}),
+      }),
+      include: {
+        leaveType: true,
+        user: { select: { namaLengkap: true } },
+        company: { select: { name: true } },
       },
-      include: { leaveType: true, user: { select: { namaLengkap: true } } },
       orderBy: { createdAt: 'asc' },
       take: 100,
     });
@@ -392,6 +419,7 @@ export class ViewController {
       rows: rows.map((r) => ({
         id: r.id,
         nama_lengkap: r.user.namaLengkap,
+        company: r.company?.name ?? '-',
         jenis: r.leaveType.name,
         start_date: r.startDate.toISOString().slice(0, 10),
         end_date: r.endDate.toISOString().slice(0, 10),
@@ -419,7 +447,7 @@ export class ViewController {
         id: user.id,
         name: user.namaLengkap,
         role: user.role,
-        companyId: user.companyId!,
+        companyId: user.companyId,
       },
       comment,
     );
@@ -433,7 +461,7 @@ export class ViewController {
     const locale = this.locale(req);
     const today = (req.query.tanggal as string) ?? new Date().toISOString().slice(0, 10);
     const scope = {
-      companyId: user.companyId!,
+      companyId: user.companyId,
       supervisorUserId: user.role === 'SUPERVISOR' ? user.id : null,
     };
     let data: any = null;
@@ -672,7 +700,8 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.location.findMany({
-      where: { companyId: user.companyId! },
+      where: this.tenantWhere(user),
+      include: { company: { select: { name: true } } },
       orderBy: { name: 'asc' },
     });
     return res.render('locations', {
@@ -684,6 +713,7 @@ export class ViewController {
         id: l.id,
         code: l.code,
         name: l.name,
+        company: l.company?.name ?? '-',
         address: (l as any).address ?? '',
         latitude: String(l.latitude),
         longitude: String(l.longitude),
@@ -755,6 +785,8 @@ export class ViewController {
         return id ? 'Kode tidak valid' : 'Invalid code';
       case 'NAME_EXISTS':
         return id ? 'Lokasi dengan nama tersebut sudah ada' : 'Location with this name already exists';
+      case 'COMPANY_REQUIRED':
+        return id ? 'Pilih perusahaan terlebih dahulu' : 'Select a company first';
       case 'IN_USE':
         return id ? 'Data lokasi ini aktif atau digunakan' : 'This location is active or in use';
       default:
@@ -773,6 +805,8 @@ export class ViewController {
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       error: null,
       row: null,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: user.companyId,
       page: 'locations',
     });
   }
@@ -784,12 +818,14 @@ export class ViewController {
     if (!this.requireLocationAdmin(user, res)) return res as any;
     const locale = this.locale(req);
     const id = Number((req.params as any).id);
-    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    const row = await this.prisma.location.findFirst({ where: this.tenantWhere(user, { id }) });
     if (!row) return res.redirect('/ui/locations');
     return res.render('location-form', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       error: null,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: row.companyId,
       row: {
         id: row.id,
         code: row.code,
@@ -821,12 +857,14 @@ export class ViewController {
       radiusMeters: src?.radiusMeters ?? src?.radius_meters ?? 900,
       status: src?.status ?? 'Y',
     });
-    const fail = (code: string, keep: any) =>
+    const fail = async (code: string, keep: any) =>
       res.status(400).render('location-form', {
         ...this.helpers(locale),
         user: { nama_lengkap: user.namaLengkap, role: user.role },
         error: this.locationFormError(code, locale),
         row: keep,
+        companies: user.companyId == null ? await this.companyOptions() : null,
+        companyId: user.companyId ?? (Number(body?.companyId) || null),
         page: 'locations',
       });
     let v: ReturnType<ViewController['parseLocationForm']>;
@@ -835,13 +873,24 @@ export class ViewController {
     } catch (e: any) {
       return fail(e?.message ?? 'SAVE_FAILED', keepOf(body));
     }
+    // platform admin picks the target company; others inherit their own
+    let companyId = user.companyId;
+    if (companyId == null) {
+      const picked = Number(body?.companyId);
+      const exists =
+        Number.isInteger(picked) &&
+        picked > 0 &&
+        (await this.prisma.company.findUnique({ where: { id: picked } }));
+      if (!exists) return fail('COMPANY_REQUIRED', keepOf(body));
+      companyId = picked;
+    }
     const dup = await this.prisma.location.findFirst({
-      where: { companyId: user.companyId!, OR: [{ name: v.name }, { code: v.code }] },
+      where: { companyId, OR: [{ name: v.name }, { code: v.code }] },
     });
     if (dup) return fail('NAME_EXISTS', keepOf(v));
     await this.prisma.location.create({
       data: {
-        companyId: user.companyId!,
+        companyId,
         code: v.code,
         name: v.name,
         address: v.address,
@@ -862,7 +911,7 @@ export class ViewController {
     if (!this.requireLocationAdmin(user, res)) return res as any;
     const locale = this.locale(req);
     const id = Number((req.params as any).id);
-    const existing = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    const existing = await this.prisma.location.findFirst({ where: this.tenantWhere(user, { id }) });
     if (!existing) return res.redirect('/ui/locations');
     const keepOf = (src: any) => ({
       id,
@@ -874,12 +923,14 @@ export class ViewController {
       radiusMeters: src?.radiusMeters ?? src?.radius_meters ?? 900,
       status: src?.status ?? 'Y',
     });
-    const fail = (code: string) =>
+    const fail = async (code: string) =>
       res.status(400).render('location-form', {
         ...this.helpers(locale),
         user: { nama_lengkap: user.namaLengkap, role: user.role },
         error: this.locationFormError(code, locale),
         row: keepOf(body),
+        companies: user.companyId == null ? await this.companyOptions() : null,
+        companyId: user.companyId ?? existing.companyId,
         page: 'locations',
       });
     let v: ReturnType<ViewController['parseLocationForm']>;
@@ -888,13 +939,25 @@ export class ViewController {
     } catch (e: any) {
       return fail(e?.message ?? 'SAVE_FAILED');
     }
+    // platform admin may move a location to another company
+    let companyId = existing.companyId;
+    if (user.companyId == null && body?.companyId != null && body.companyId !== '') {
+      const picked = Number(body.companyId);
+      const exists =
+        Number.isInteger(picked) &&
+        picked > 0 &&
+        (await this.prisma.company.findUnique({ where: { id: picked } }));
+      if (!exists) return fail('COMPANY_REQUIRED');
+      companyId = picked;
+    }
     const dup = await this.prisma.location.findFirst({
-      where: { companyId: user.companyId!, NOT: { id }, OR: [{ name: v.name }, { code: v.code }] },
+      where: { companyId, NOT: { id }, OR: [{ name: v.name }, { code: v.code }] },
     });
     if (dup) return fail('NAME_EXISTS');
     await this.prisma.location.update({
       where: { id },
       data: {
+        companyId,
         code: v.code,
         name: v.name,
         address: v.address,
@@ -914,7 +977,7 @@ export class ViewController {
     if (!user) return res as any;
     if (!this.requireLocationAdmin(user, res)) return res as any;
     const id = Number((req.params as any).id);
-    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    const row = await this.prisma.location.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) {
       await this.prisma.location.update({ where: { id }, data: { status: row.status === 'Y' ? 'N' : 'Y' } });
     }
@@ -929,12 +992,13 @@ export class ViewController {
     if (!this.requireLocationAdmin(user, res)) return res as any;
     const locale = this.locale(req);
     const id = Number((req.params as any).id);
-    const row = await this.prisma.location.findFirst({ where: { id, companyId: user.companyId! } });
+    const row = await this.prisma.location.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) {
       const used = await this.prisma.user.count({ where: { locationId: id } });
       if (used > 0) {
         const rows = await this.prisma.location.findMany({
-          where: { companyId: user.companyId! },
+          where: this.tenantWhere(user),
+          include: { company: { select: { name: true } } },
           orderBy: { name: 'asc' },
         });
         return res.status(409).render('locations', {
@@ -946,6 +1010,7 @@ export class ViewController {
             id: l.id,
             code: l.code,
             name: l.name,
+            company: l.company?.name ?? '-',
             address: (l as any).address ?? '',
             latitude: String(l.latitude),
             longitude: String(l.longitude),
@@ -966,8 +1031,8 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.schedule.findMany({
-      where: { companyId: user.companyId! },
-      include: { details: true },
+      where: this.tenantWhere(user),
+      include: { details: true, company: { select: { name: true } } },
       orderBy: { name: 'asc' },
     });
     return res.render('schedules', {
@@ -977,6 +1042,7 @@ export class ViewController {
         id: s.id,
         code: s.code,
         name: s.name,
+        company: s.company?.name ?? '-',
         is_active: s.isActive,
         detail_count: s.details.length,
         details: s.details.map((d) => ({
@@ -996,7 +1062,8 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.leaveType.findMany({
-      where: { companyId: user.companyId! },
+      where: this.tenantWhere(user),
+      include: { company: { select: { name: true } } },
       orderBy: { name: 'asc' },
     });
     return res.render('leave-types', {
@@ -1006,6 +1073,7 @@ export class ViewController {
         id: l.id,
         code: l.code,
         name: l.name,
+        company: l.company?.name ?? '-',
         category: l.category,
         is_deductible: l.isDeductible,
         requires_attachment: l.requiresAttachment,
@@ -1021,7 +1089,8 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.holiday.findMany({
-      where: { companyId: user.companyId! },
+      where: this.tenantWhere(user),
+      include: { company: { select: { name: true } } },
       orderBy: { date: 'asc' },
     });
     return res.render('holidays', {
@@ -1031,6 +1100,7 @@ export class ViewController {
         id: h.id,
         tanggal: h.date.toISOString().slice(0, 10),
         name: h.name,
+        company: h.company?.name ?? '-',
       })),
       page: 'holidays',
     });
@@ -1042,13 +1112,12 @@ export class ViewController {
     if (!user) return res as any;
     const locale = this.locale(req);
     const rows = await this.prisma.notification.findMany({
-      where: {
-        companyId: user.companyId!,
+      where: this.tenantWhere(user, {
         OR: [
           { recipientType: 'USER', recipientId: user.id },
           { recipientType: 'ROLE', role: user.role },
         ],
-      },
+      }),
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -1076,7 +1145,7 @@ export class ViewController {
     try {
       data = await this.reports.processLog(
         {
-          companyId: user.companyId!,
+          companyId: user.companyId,
           supervisorUserId: user.role === 'SUPERVISOR' ? user.id : null,
         },
         { date: today, limit: 50 },

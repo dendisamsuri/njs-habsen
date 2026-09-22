@@ -4,10 +4,10 @@
   <div class="table-toolbar"><b>Daftar libur</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_holidays') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('date') %></th><th><%= t('name') %></th></tr></thead>
+    <thead><tr><th><%= t('date') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
-        <tr><td class="mono"><%= r.tanggal %></td><td><b><%= r.name %></b></td></tr>
+        <tr><td class="mono"><%= r.tanggal %></td><td><b><%= r.name %></b></td><td style="font-size:.82rem;"><%= r.company %></td></tr>
       <% }) %>
     </tbody>
   </table></div>

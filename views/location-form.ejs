@@ -16,6 +16,15 @@
   <div class="card card-pad">
     <form method="post" action="<%= row ? '/ui/locations/' + row.id : '/ui/locations' %>">
       <div class="form-grid">
+        <% if (typeof companies !== 'undefined' && companies) { %>
+        <div class="field full"><%= t('company_label') %>
+          <select name="companyId" required>
+            <% companies.forEach(function(c) { %>
+              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <% } %>
         <div class="field"><%= t('code') %><input name="code" maxlength="32" value="<%= row ? row.code : (typeof row === 'object' && row && row.code ? row.code : '') %>" placeholder="(auto)" /></div>
         <div class="field"><%= t('active_label') %>
           <select name="status">

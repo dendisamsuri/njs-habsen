@@ -7,7 +7,7 @@
   <div class="table-toolbar"><b>Daftar karyawan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_users') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('name') %></th><th><%= t('email') %></th><th>NIP</th><th><%= t('role') %></th><th><%= t('position') %></th><th><%= t('location') %></th><th><%= t('lead') %></th><th><%= t('active') %></th></tr></thead>
+    <thead><tr><th><%= t('name') %></th><th><%= t('email') %></th><th>NIP</th><th><%= t('role') %></th><th><%= t('company_label') %></th><th><%= t('position') %></th><th><%= t('location') %></th><th><%= t('lead') %></th><th><%= t('active') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
         <tr>
@@ -15,6 +15,7 @@
           <td style="font-size:.8rem;"><%= r.email %></td>
           <td class="mono"><%= r.nip %></td>
           <td><span class="badge gray"><%= r.role %></span></td>
+          <td style="font-size:.82rem;"><%= r.company %></td>
           <td style="font-size:.82rem;"><%= r.posisi %></td>
           <td style="font-size:.82rem;"><%= r.lokasi %></td>
           <td style="font-size:.82rem;"><%= r.lead %></td>

@@ -12,7 +12,8 @@ export interface ApprovalActor {
   id: number; // user id of decider
   name: string;
   role: string;
-  companyId: number;
+  // null = platform admin acting across companies
+  companyId: number | null;
 }
 
 export interface TransitionResult {
@@ -59,7 +60,6 @@ export class ApprovalTransitionService {
       throw err('LEAVE_COMMENT_INVALID', 400);
     }
 
-    const c = this.c();
     const companyId = actor.companyId;
 
     // transaction with row lock semantics (Prisma interactive transaction)
@@ -71,14 +71,14 @@ export class ApprovalTransitionService {
 
           if (requestType === 'LEAVE') {
             row = await tx.leaveRequest.findFirst({
-              where: { id: requestId, companyId, deletedAt: null },
+              where: { id: requestId, deletedAt: null, ...(companyId == null ? {} : { companyId }) },
             });
             if (row) {
               owner = await tx.user.findFirst({ where: { id: row.userId } });
             }
           } else {
             row = await tx.replacementOff.findFirst({
-              where: { id: requestId, companyId, deletedAt: null },
+              where: { id: requestId, deletedAt: null, ...(companyId == null ? {} : { companyId }) },
             });
             if (row) {
               owner = await tx.user.findFirst({ where: { id: row.userId } });
@@ -88,6 +88,7 @@ export class ApprovalTransitionService {
           if (!row || !owner) {
             return { error: 'NOT_FOUND' as const };
           }
+          const cid = row.companyId;
 
           if (level === 3) {
             if (owner.id === actor.id) return { error: 'SELF_APPROVAL_DENIED' as const };
@@ -122,10 +123,10 @@ export class ApprovalTransitionService {
           }
           if (updated.count !== 1) return { error: 'ALREADY_PROCESSED' as const };
 
-          // audit row
+          // audit row — companyId follows the request, not the actor
           await tx.requestApproval.create({
             data: {
-              companyId,
+              companyId: cid,
               requestType,
               requestId,
               eventType: 'APPROVAL',
@@ -154,12 +155,12 @@ export class ApprovalTransitionService {
                 const presence = leave.leaveType.category === 'LEAVE' ? 'CUTI' : 'IZIN';
                 for (const day of dateRange(startIso, endIso)) {
                   const exists = await tx.attendances.findFirst({
-                    where: { companyId, userId: leave.userId, tanggal: new Date(day) },
+                    where: { companyId: cid, userId: leave.userId, tanggal: new Date(day) },
                   });
                   if (!exists) {
                     await tx.attendances.create({
                       data: {
-                        companyId,
+                        companyId: cid,
                         userId: leave.userId,
                         tanggal: new Date(day),
                         checkIn: null,
@@ -179,7 +180,7 @@ export class ApprovalTransitionService {
               if (leave.leaveType.isDeductible && total > 0) {
                 const year = Number(startIso.slice(0, 4));
                 const bal = await tx.leaveBalance.findFirst({
-                  where: { companyId, userId: leave.userId, leaveTypeId: leave.leaveTypeId, year },
+                  where: { companyId: cid, userId: leave.userId, leaveTypeId: leave.leaveTypeId, year },
                 });
                 if (!bal) return { error: 'SIDE_EFFECT_FAILED' as const };
                 const updatedBal = await tx.leaveBalance.updateMany({
@@ -193,7 +194,7 @@ export class ApprovalTransitionService {
             // replacement_off: no side effect (per PHP)
           }
 
-          return { newStatus, userId: owner.id, requestType, requestId };
+          return { newStatus, userId: owner.id, requestType, requestId, companyId: cid };
         },
         { timeout: 15000 },
       );
@@ -204,6 +205,7 @@ export class ApprovalTransitionService {
 
       const newStatus = (outcome as any).newStatus as string;
       const userId = (outcome as any).userId as number;
+      const cid = (outcome as any).companyId as number;
 
       // post-commit notifications
       const label =
@@ -216,7 +218,7 @@ export class ApprovalTransitionService {
             ? 'ditolak'
             : 'menunggu persetujuan HR';
       await this.notifications.notifyUser({
-        companyId,
+        companyId: cid,
         userId,
         category: requestType === 'LEAVE' ? 'LEAVE' : 'REPLACEMENT_OFF',
         eventKey: `${requestType.toLowerCase()}:status:${requestId}:${newStatus}:user:${userId}`,
@@ -226,7 +228,7 @@ export class ApprovalTransitionService {
       });
       if (newStatus === 'waiting_hr') {
         await this.notifications.notifyRoles({
-          companyId,
+          companyId: cid,
           roles: ['COMPANY_ADMIN', 'PLATFORM_ADMIN'],
           category: requestType === 'LEAVE' ? 'LEAVE' : 'REPLACEMENT_OFF',
           eventKeyBase: `${requestType.toLowerCase()}:status:${requestId}:${newStatus}`,
@@ -278,12 +280,12 @@ export class ApprovalTransitionService {
     const page = Math.max(params.page ?? 1, 1);
 
     const whereLeave: any = {
-      companyId: actor.companyId,
+      ...(actor.companyId == null ? {} : { companyId: actor.companyId }),
       userId: { in: reportIds },
       deletedAt: null,
     };
     const whereRo: any = {
-      companyId: actor.companyId,
+      ...(actor.companyId == null ? {} : { companyId: actor.companyId }),
       userId: { in: reportIds },
       deletedAt: null,
     };
@@ -291,7 +293,7 @@ export class ApprovalTransitionService {
     if (params.view === 'history') {
       const audits = await c.requestApproval.findMany({
         where: {
-          companyId: actor.companyId,
+          ...(actor.companyId == null ? {} : { companyId: actor.companyId }),
           actorId: actor.id,
           eventType: 'APPROVAL',
         },
@@ -392,13 +394,18 @@ export class ApprovalTransitionService {
     };
   }
 
-  private async subtreeIds(companyId: number, rootId: number): Promise<number[]> {
+  // null companyId (platform admin) walks direct reports across companies
+  private async subtreeIds(companyId: number | null, rootId: number): Promise<number[]> {
     const c = this.c();
     const result = new Set<number>([rootId]);
     let frontier = [rootId];
     for (let depth = 0; depth < 10 && frontier.length > 0; depth++) {
       const children: any[] = await c.user.findMany({
-        where: { companyId, directLeadId: { in: frontier }, deletedAt: null },
+        where: {
+          ...(companyId == null ? {} : { companyId }),
+          directLeadId: { in: frontier },
+          deletedAt: null,
+        },
         select: { id: true },
       });
       frontier = [];

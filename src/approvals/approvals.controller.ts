@@ -115,7 +115,7 @@ export class ApprovalsController {
     const c = (this.prisma as any).scoped();
     if (kind === 'LEAVE') {
       const row = await c.leaveRequest.findFirst({
-        where: { id, companyId: req.user.companyId, deletedAt: null },
+        where: { id, deletedAt: null, ...(req.user.companyId == null ? {} : { companyId: req.user.companyId }) },
         include: { leaveType: true, user: { select: { id: true, namaLengkap: true } } },
       });
       if (!row) throw err('NOT_FOUND', 404);
@@ -142,7 +142,7 @@ export class ApprovalsController {
       };
     }
     const row = await c.replacementOff.findFirst({
-      where: { id, companyId: req.user.companyId, deletedAt: null },
+      where: { id, deletedAt: null, ...(req.user.companyId == null ? {} : { companyId: req.user.companyId }) },
       include: { user: { select: { id: true, namaLengkap: true } } },
     });
     if (!row) throw err('NOT_FOUND', 404);

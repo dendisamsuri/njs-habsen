@@ -13,12 +13,13 @@
   <div class="table-toolbar"><b>Daftar lokasi</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_locations') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th>No</th><th><%= t('location_name') %></th><th><%= t('address') %></th><th><%= t('radius') %></th><th style="text-align:center;"><%= t('active_label') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
+    <thead><tr><th>No</th><th><%= t('location_name') %></th><th><%= t('company_label') %></th><th><%= t('address') %></th><th><%= t('radius') %></th><th style="text-align:center;"><%= t('active_label') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r, i) { %>
         <tr>
           <td class="mono"><%= i + 1 %></td>
           <td><b><%= r.name %></b><div style="font-size:.74rem;color:var(--muted);" class="mono"><%= r.code || '' %></div></td>
+          <td style="font-size:.82rem;"><%= r.company %></td>
           <td style="max-width:260px;font-size:.82rem;"><%= r.address %></td>
           <td class="mono"><%= r.radiusMeters %> m</td>
           <td style="text-align:center;"><span class="badge <%= r.status === 'Y' ? 'green' : 'red' %>"><%= r.status === 'Y' ? t('yes') : t('no') %></span></td>
