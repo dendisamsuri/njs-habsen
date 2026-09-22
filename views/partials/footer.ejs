@@ -17,6 +17,19 @@
       tr.style.display = tr.textContent.toLowerCase().indexOf(s) !== -1 ? '' : 'none';
     });
   });
+  var themeBtns = document.querySelectorAll('[data-set-theme]');
+  function paintTheme(m) {
+    themeBtns.forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-set-theme') === m); });
+  }
+  paintTheme(document.documentElement.getAttribute('data-theme'));
+  themeBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = b.getAttribute('data-set-theme');
+      document.documentElement.setAttribute('data-theme', m);
+      try { localStorage.setItem('theme', m); } catch (e) {}
+      paintTheme(m);
+    });
+  });
 })();
 </script>
 </body>

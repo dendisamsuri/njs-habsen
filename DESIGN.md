@@ -32,6 +32,22 @@
 Aturan keras: tanpa gradient biru–ungu, tanpa glow, tanpa warna ungu, tanpa palet di luar tabel ini.
 Aksen `--brand` hanya di momen kunci (CTA utama, fokus keyboard) — bukan di semua elemen.
 
+### Varian gelap (`data-theme="dark"`)
+
+Override token di `[data-theme="dark"]` — hue sama, naik terang untuk kontras di latar gelap:
+
+| Token | Nilai gelap |
+|---|---|
+| `--ink` | `#e5eaf3` |
+| `--bg` | `#0b1220` |
+| `--card` | `#131c2e` |
+| `--line` / `--line-soft` | `#263349` / `#1b2537` |
+| `--brand` / `--brand-2` | `#3b82f6` / `#818cf8` |
+| Status (teks) | green `#34d399`, amber `#fbbf24`, red `#f87171`, blue `#60a5fa`, orange `#fb923c`, gray `#94a3b8` |
+| Status (latar) | `#062e22`, `#33240a`, `#3a1414`, `#12294d`, `#3a1e0a`, `#1f2a3d` |
+
+Tema: pilihan tersimpan di `localStorage('theme')` (`light`/`dark`), fallback `prefers-color-scheme`, toggle segmented "Terang | Gelap" di topbar. Ikon bukan lambang tema — label teks.
+
 ## Tipografi
 
 - Stack: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`.

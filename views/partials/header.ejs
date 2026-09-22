@@ -4,6 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Absensi Admin</title>
+  <script>
+    (function () {
+      var m;
+      try { m = localStorage.getItem('theme'); } catch (e) { m = null; }
+      if (m !== 'light' && m !== 'dark') {
+        m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', m);
+    })();
+  </script>
   <style>
     :root {
       --bg: #eef2f7;
@@ -30,9 +40,64 @@
       --radius-s: 9px;
       --shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 22px -12px rgba(15,23,42,.18);
       --sidebar-w: 264px;
+      --topbar-bg: rgba(255,255,255,.86);
+      --field-bg: #f8fafc;
+      --tint: #fbfcfe;
+      --row-hover: #f6f9ff;
+      --btn-hover: #f8faff;
+      --btn-line: #b9c6e4;
+      --line-input: #cbd5e1;
+      --line-link: #bfcdf3;
+      --label: #334155;
+      --gray: #475569;
+      --gray-bg: #eef2f7;
+      --avatar-bg: #e2e8f0;
+      --avatar-ink: #334155;
+      --alert-bg: #fef2f2;
+      --alert-line: #fecaca;
+      --alert-ink: #991b1b;
+      --row-unread: #fffbeb;
+      --lang-hover: #eff6ff;
+    }
+    [data-theme="dark"] {
+      --ink: #e5eaf3;
+      --bg: #0b1220;
+      --card: #131c2e;
+      --muted: #97a3b8;
+      --faint: #8b98af;
+      --line: #263349;
+      --line-soft: #1b2537;
+      --brand: #3b82f6;
+      --brand-2: #818cf8;
+      --brand-soft: rgba(99,102,241,.2);
+      --green: #34d399; --green-bg: #062e22;
+      --amber: #fbbf24; --amber-bg: #33240a;
+      --red: #f87171; --red-bg: #3a1414;
+      --blue: #60a5fa; --blue-bg: #12294d;
+      --orange: #fb923c; --orange-bg: #3a1e0a;
+      --gray: #94a3b8; --gray-bg: #1f2a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 22px -12px rgba(0,0,0,.6);
+      --topbar-bg: rgba(19,28,46,.86);
+      --field-bg: #172033;
+      --tint: #141d2f;
+      --row-hover: rgba(99,140,255,.08);
+      --btn-hover: #1a2540;
+      --btn-line: #33445f;
+      --line-input: #33445f;
+      --line-link: #3b82f6;
+      --label: #cbd5e1;
+      --avatar-bg: #243044;
+      --avatar-ink: #cbd5e1;
+      --alert-bg: #2d1515;
+      --alert-line: #7f1d1d;
+      --alert-ink: #fca5a5;
+      --row-unread: #2d2209;
+      --lang-hover: #1a2540;
     }
     * { box-sizing: border-box; }
-    html { -webkit-text-size-adjust: 100%; }
+    html { -webkit-text-size-adjust: 100%; color-scheme: light; }
+    [data-theme="dark"] { color-scheme: dark; }
+    ::placeholder { color: var(--faint); opacity: 1; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -121,14 +186,14 @@
     .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
       position: sticky; top: 0; z-index: 30;
-      background: rgba(255,255,255,.86);
+      background: var(--topbar-bg);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--line);
       padding: .7rem 1.4rem;
       display: flex; align-items: center; gap: .8rem;
     }
     .icon-btn {
-      display: none; border: 1px solid var(--line); background: #fff; border-radius: 9px;
+      display: none; border: 1px solid var(--line); background: var(--card); border-radius: 9px;
       width: 38px; height: 38px; font-size: 1.1rem; cursor: pointer; color: var(--ink);
     }
     .crumbs { min-width: 0; flex: 1; }
@@ -137,17 +202,18 @@
     .search-box input {
       width: 240px; max-width: 34vw;
       padding: .5rem .7rem;
-      border: 1px solid var(--line); border-radius: 9px; background: #f8fafc;
+      border: 1px solid var(--line); border-radius: 9px; background: var(--field-bg);
       font-size: .85rem; color: var(--ink);
     }
-    .lang-pills { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
-    .lang-pills a {
+    .lang-pills { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
+    .lang-pills a, .lang-pills button {
       padding: .38rem .7rem; font-size: .75rem; font-weight: 700; text-decoration: none; color: var(--muted);
+      background: transparent; border: 0; cursor: pointer; font-family: inherit;
     }
-    .lang-pills a.on { background: var(--ink); color: #fff; }
+    .lang-pills .on { background: var(--ink); color: var(--bg); }
     .user-chip {
       display: flex; align-items: center; gap: .55rem;
-      border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: .25rem .7rem .25rem .25rem;
+      border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: .25rem .7rem .25rem .25rem;
       font-size: .78rem; max-width: 250px;
     }
     .user-chip .avatar { width: 28px; height: 28px; font-size: .7rem; background: var(--brand-soft); color: var(--brand); }
@@ -185,32 +251,32 @@
     .quick-links a {
       display: flex; align-items: center; justify-content: space-between; gap: .5rem;
       border: 1px solid var(--line); border-radius: 10px; padding: .55rem .7rem;
-      text-decoration: none; color: var(--ink); background: #fbfdff; font-size: .85rem;
+      text-decoration: none; color: var(--ink); background: var(--tint); font-size: .85rem;
     }
-    .quick-links a:hover { border-color: #bfcdf3; background: var(--brand-soft); }
+    .quick-links a:hover { border-color: var(--line-link); background: var(--brand-soft); }
 
     /* ---------- Tables ---------- */
     .table-toolbar {
       display: flex; align-items: center; justify-content: space-between; gap: .7rem;
       padding: .85rem 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap;
-      background: #fbfcfe;
+      background: var(--tint);
     }
     .table-toolbar .count { font-size: .8rem; color: var(--muted); }
     .table-wrap { overflow-x: auto; }
-    table.tbl { width: 100%; border-collapse: collapse; background: #fff; min-width: 640px; }
+    table.tbl { width: 100%; border-collapse: collapse; background: var(--card); min-width: 640px; }
     .tbl th, .tbl td { text-align: left; padding: .62rem .8rem; font-size: .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
     .tbl thead th {
-      background: #f8fafc; font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+      background: var(--field-bg); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
       color: var(--muted); font-weight: 700; white-space: nowrap;
       position: sticky; top: 0;
     }
-    .tbl tbody tr:hover { background: #f6f9ff; }
+    .tbl tbody tr:hover { background: var(--row-hover); }
     .tbl tbody tr:last-child td { border-bottom: 0; }
     .cell-main { display: flex; align-items: center; gap: .6rem; min-width: 170px; }
     .mini-avatar {
       width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
       display: grid; place-items: center; font-size: .72rem; font-weight: 800;
-      background: #e2e8f0; color: #334155;
+      background: var(--avatar-bg); color: var(--avatar-ink);
     }
     .cell-main b { display: block; font-size: .86rem; }
     .cell-main span { display: block; font-size: .74rem; color: var(--muted); }
@@ -219,7 +285,7 @@
     .badge {
       display: inline-flex; align-items: center; gap: .3rem;
       padding: .16rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700;
-      background: #eef2f7; color: #475569; border: 1px solid transparent; white-space: nowrap;
+      background: var(--gray-bg); color: var(--gray); border: 1px solid transparent; white-space: nowrap;
     }
     .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
     .badge.green, .badge.approved, .badge.hadir, .badge.active, .badge.waiting_hr { background: var(--green-bg); color: var(--green); }
@@ -227,21 +293,21 @@
     .badge.red, .badge.rejected, .badge.cancelled, .badge.expired, .badge.inactive, .badge.alpha { background: var(--red-bg); color: var(--red); }
     .badge.blue, .badge.izin, .badge.cuti, .badge.sakit { background: var(--blue-bg); color: var(--blue); }
     .badge.orange, .badge.terlambat { background: var(--orange-bg); color: var(--orange); }
-    .badge.gray { background: #eef2f7; color: #475569; }
+    .badge.gray { background: var(--gray-bg); color: var(--gray); }
 
     .empty { padding: 2.2rem 1.5rem; text-align: center; color: var(--muted); }
     .alert { border-radius: 10px; padding: .65rem .8rem; font-size: .85rem; margin-bottom: .8rem; border: 1px solid; }
-    .alert.error, p.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; border-radius: 10px; padding: .65rem .8rem; }
-    .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: .65rem .8rem; font-size: .85rem; }
+    .alert.error, p.error { background: var(--alert-bg); border-color: var(--alert-line); color: var(--alert-ink); border-radius: 10px; padding: .65rem .8rem; }
+    .error { background: var(--alert-bg); border: 1px solid var(--alert-line); color: var(--alert-ink); border-radius: 10px; padding: .65rem .8rem; font-size: .85rem; }
 
     /* ---------- Buttons / forms ---------- */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
       padding: .52rem .9rem; border-radius: 10px; font-size: .85rem; font-weight: 650;
-      border: 1px solid var(--line); background: #fff; color: var(--ink);
+      border: 1px solid var(--line); background: var(--card); color: var(--ink);
       text-decoration: none; cursor: pointer; white-space: nowrap;
     }
-    .btn:hover { border-color: #b9c6e4; background: #f8faff; }
+    .btn:hover { border-color: var(--btn-line); background: var(--btn-hover); }
     .btn.primary { background: var(--brand); border-color: transparent; color: #fff; }
     .btn.primary:hover { filter: brightness(1.05); }
     .btn.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
@@ -249,7 +315,7 @@
     .btn.ghost { background: transparent; }
     button.small, .tbl button, .tbl .btn {
       padding: .32rem .6rem; font-size: .76rem; border-radius: 8px;
-      border: 1px solid var(--line); background: #fff; cursor: pointer;
+      border: 1px solid var(--line); background: var(--card); cursor: pointer;
     }
     button.small.ok { background: #059669; border-color: #059669; color: #fff; }
     button.small.no, button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
@@ -262,11 +328,11 @@
       background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
       padding: .85rem 1rem; margin-bottom: .9rem; box-shadow: var(--shadow);
     }
-    .field { display: grid; gap: .3rem; font-size: .8rem; color: #334155; font-weight: 600; }
+    .field { display: grid; gap: .3rem; font-size: .8rem; color: var(--label); font-weight: 600; }
     input[type="text"], input[type="email"], input[type="password"], input[type="date"],
     input[type="number"], select, textarea {
-      border: 1px solid #cbd5e1; border-radius: 9px; padding: .52rem .65rem;
-      font-size: .88rem; background: #fff; color: var(--ink); min-height: 38px;
+      border: 1px solid var(--line-input); border-radius: 9px; padding: .52rem .65rem;
+      font-size: .88rem; background: var(--card); color: var(--ink); min-height: 38px;
     }
     input:focus, select:focus, textarea:focus { border-color: var(--brand-2); outline: 2px solid rgba(79,70,229,.2); }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem 1.2rem; }
@@ -371,6 +437,10 @@
         <div class="over">Absensi Admin / <%= _title %></div>
       </div>
       <div class="search-box"><input id="globalSearch" type="text" placeholder="Cari di tabel…" autocomplete="off" /></div>
+      <div class="lang-pills" role="group" aria-label="<%= t('theme_label') %>">
+        <button type="button" data-set-theme="light"><%= t('theme_light') %></button>
+        <button type="button" data-set-theme="dark"><%= t('theme_dark') %></button>
+      </div>
       <div class="lang-pills">
         <a href="<%= langUrl('id') %>" class="<%= locale === 'id' ? 'on' : '' %>">ID</a>
         <a href="<%= langUrl('en') %>" class="<%= locale === 'en' ? 'on' : '' %>">EN</a>

@@ -10,7 +10,7 @@
     <thead><tr><th><%= t('title') %></th><th><%= t('reason') %></th><th><%= t('date') %></th><th><%= t('status') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
-        <tr style="<%= r.is_read ? '' : 'background:#fffbeb;' %>">
+        <tr style="<%= r.is_read ? '' : 'background:var(--row-unread);' %>">
           <td><b><%= r.title %></b></td>
           <td style="max-width:280px;"><%= r.body %></td>
           <td class="mono" style="white-space:nowrap;"><%= r.created_at %></td>
