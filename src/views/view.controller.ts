@@ -89,6 +89,21 @@ function tr(key: string, locale: string): string {
     position: { id: 'Posisi', en: 'Position' },
     location: { id: 'Lokasi', en: 'Location' },
     lead: { id: 'Atasan', en: 'Supervisor' },
+    schedule_label: { id: 'Jadwal kerja', en: 'Work schedule' },
+    direct_lead_label: { id: 'Atasan langsung', en: 'Direct supervisor' },
+    schedule_multi_help: {
+      id: 'Bisa pilih lebih dari satu jadwal. Jadwal pertama menjadi jadwal utama.',
+      en: 'You can pick more than one schedule. The first one becomes the primary schedule.',
+    },
+    section_access: { id: 'Akses & penempatan', en: 'Access & placement' },
+    company_first_help: {
+      id: 'Pilih perusahaan dulu; posisi, lokasi, jadwal, dan atasan mengikuti perusahaan ini.',
+      en: 'Select the company first; position, location, schedules, and supervisor follow this company.',
+    },
+    nip_help: { id: 'Opsional, sesuai ID payroll.', en: 'Optional, matches your payroll ID.' },
+    password_keep_help: { id: 'Kosongkan jika password tidak berubah.', en: 'Leave empty to keep the current password.' },
+    password_min_help: { id: 'Minimal 8 karakter.', en: 'At least 8 characters.' },
+    pick_schedules: { id: 'Pilih jadwal', en: 'Select schedules' },
     company_label: { id: 'Perusahaan', en: 'Company' },
     active: { id: 'Aktif', en: 'Active' },
     code: { id: 'Kode', en: 'Code' },
@@ -480,17 +495,29 @@ export class ViewController {
     })), page: 'employees' });
   }
 
+  private static scheduleIdsFromBody(body: any): number[] {
+    const raw = body.schedule_ids;
+    const list = raw == null || raw === '' ? [] : Array.isArray(raw) ? raw : [raw];
+    return [...new Set(list.map((v: any) => Number(v)).filter((n: number) => Number.isInteger(n) && n > 0))];
+  }
+
   private async employeeFormData(user: any, row: any = null, companyId: number | null = null) {
     const scopeId = user.companyId ?? companyId ?? row?.companyId ?? null;
     const companies = user.companyId == null ? await this.companyOptions() : null;
     if (scopeId == null) {
-      return { row, companies, companyId: null, positions: [], locations: [], schedules: [], leads: [] };
+      return { row, companies, companyId: null, positions: [], locations: [], schedules: [], scheduleIds: [], leads: [] };
     }
     const scope = (extra: Record<string, unknown>) => ({ ...extra, companyId: scopeId });
+    let scheduleIds: number[] = [];
+    if (row) {
+      scheduleIds = (await this.prisma.userSchedule.findMany({ where: { userId: row.id }, orderBy: { id: 'asc' } })).map((r) => r.scheduleId);
+      if (scheduleIds.length === 0 && row.scheduleId) scheduleIds = [row.scheduleId];
+    }
     return {
       row,
       companies,
       companyId: scopeId,
+      scheduleIds,
       positions: await this.prisma.position.findMany({ where: scope({ isActive: true }), orderBy: { name: 'asc' } }),
       locations: await this.prisma.location.findMany({ where: scope({ status: 'Y' }), orderBy: { name: 'asc' } }),
       schedules: await this.prisma.schedule.findMany({ where: scope({ isActive: true }), orderBy: { name: 'asc' } }),
@@ -531,10 +558,12 @@ export class ViewController {
     if (!email || !name || password.length < 8) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) return res.redirect('/ui/employees?error=DUPLICATE');
+    const scheduleIds = ViewController.scheduleIdsFromBody(body);
     const refs = {
       position_id: Number(body.position_id) || null,
       location_id: Number(body.location_id) || null,
-      schedule_id: Number(body.schedule_id) || null,
+      schedule_id: scheduleIds[0] ?? null,
+      schedule_ids: scheduleIds,
       direct_lead_id: Number(body.direct_lead_id) || null,
     };
     try {
@@ -546,7 +575,7 @@ export class ViewController {
     const dobRaw = String(body.date_of_birth ?? '').trim();
     if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
     const gender = ['Laki-laki', 'Perempuan'].includes(String(body.gender ?? '')) ? body.gender : null;
-    await this.prisma.user.create({ data: {
+    const created = await this.prisma.user.create({ data: {
       companyId, email, namaLengkap: name, nip: body.nip || null,
       placeOfBirth: String(body.place_of_birth ?? '').trim() || null,
       dateOfBirth: dobRaw ? new Date(`${dobRaw}T00:00:00.000Z`) : null,
@@ -555,6 +584,11 @@ export class ViewController {
       address: String(body.address ?? '').trim() || null,
       passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N',
     } });
+    if (scheduleIds.length > 0) {
+      await this.prisma.userSchedule.createMany({
+        data: scheduleIds.map((scheduleId) => ({ userId: created.id, scheduleId })),
+      });
+    }
     return res.redirect('/ui/employees');
   }
 
@@ -571,10 +605,12 @@ export class ViewController {
     const email = String(body.email ?? '').trim().toLowerCase();
     const exists = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
     if (exists) return res.redirect(`/ui/employees/${id}/edit?error=DUPLICATE`);
+    const scheduleIds = ViewController.scheduleIdsFromBody(body);
     const refs = {
       position_id: Number(body.position_id) || null,
       location_id: Number(body.location_id) || null,
-      schedule_id: Number(body.schedule_id) || null,
+      schedule_id: scheduleIds[0] ?? null,
+      schedule_ids: scheduleIds,
       direct_lead_id: Number(body.direct_lead_id) || null,
     };
     try {
@@ -597,6 +633,12 @@ export class ViewController {
     };
     if (String(body.password ?? '')) data.passwordHash = await bcrypt.hash(String(body.password), 12);
     await this.prisma.user.update({ where: { id }, data });
+    await this.prisma.userSchedule.deleteMany({ where: { userId: id } });
+    if (scheduleIds.length > 0) {
+      await this.prisma.userSchedule.createMany({
+        data: scheduleIds.map((scheduleId) => ({ userId: id, scheduleId })),
+      });
+    }
     return res.redirect('/ui/employees');
   }
 

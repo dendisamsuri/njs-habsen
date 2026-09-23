@@ -91,9 +91,10 @@ model User {
   leaveBalances    LeaveBalance[]
   notifications    Notification[]
   faceRecognitions FaceRecognition[]
-  refreshTokens     RefreshToken[]
-  requestApprovals  RequestApproval[] @relation("ApprovalActor")
+  refreshTokens    RefreshToken[]
+  requestApprovals RequestApproval[]           @relation("ApprovalActor")
   correctionAudits AttendanceCorrectionAudit[]
+  userSchedules    UserSchedule[]
 
   @@index([companyId])
   @@index([directLeadId])
@@ -201,11 +202,27 @@ model Schedule {
   company         Company          @relation(fields: [companyId], references: [id])
   details         ScheduleDetail[]
   users           User[]
+  userSchedules   UserSchedule[]
   attendances     Attendances[]
   replacementOffs ReplacementOff[]
 
   @@unique([companyId, code])
   @@map("schedules")
+}
+
+model UserSchedule {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  scheduleId Int      @map("schedule_id")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scheduleId])
+  @@index([scheduleId])
+  @@map("user_schedules")
 }
 
 model ScheduleDetail {
@@ -427,10 +444,10 @@ model ReplacementOff {
   updatedAt       DateTime             @updatedAt @map("updated_at")
   deletedAt       DateTime?            @map("deleted_at")
 
-  company     Company       @relation(fields: [companyId], references: [id])
-  user        User          @relation(fields: [userId], references: [id])
-  schedule    Schedule?     @relation(fields: [scheduleId], references: [id])
-  attendances Attendances[]
+  company       Company        @relation(fields: [companyId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  schedule      Schedule?      @relation(fields: [scheduleId], references: [id])
+  attendances   Attendances[]
 
   @@index([companyId, status])
   @@index([companyId, userId])

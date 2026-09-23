@@ -18,6 +18,12 @@
   .field input::placeholder { color: var(--faint); }
   .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--line); }
   .field input:focus, .field select:focus, .field textarea:focus { background: var(--card); border-color: var(--brand-2); }
+  .field input[type="radio"], .field input[type="checkbox"] {
+    background: transparent; border: 0; padding: 0; min-height: 0;
+    width: auto; height: auto; accent-color: var(--brand);
+  }
+  .field input[type="radio"]:hover, .field input[type="checkbox"]:hover { border: 0; }
+  .field input[type="radio"]:focus, .field input[type="checkbox"]:focus { background: transparent; border: 0; }
   .seg { display: flex; gap: .5rem; }
   .seg-opt {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
@@ -28,10 +34,43 @@
   }
   .seg-opt:hover { border-color: var(--line); }
   .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
+  .ms { position: relative; }
+  .ms-btn {
+    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+    width: 100%; text-align: left; cursor: pointer;
+    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
+    padding: .6rem .8rem; min-height: 38px;
+    font-family: inherit; font-size: .88rem; color: var(--ink);
+    transition: background .15s, border-color .15s;
+  }
+  .ms-btn:hover { border-color: var(--line); }
+  .ms-btn:focus-visible { border-color: var(--brand-2); background: var(--card); }
+  .ms-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ms-val.ph { color: var(--faint); font-weight: 400; }
+  .ms-caret {
+    flex: 0 0 auto; width: 0; height: 0;
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 5px solid var(--muted);
+    transition: transform .15s;
+  }
+  .ms.open .ms-caret { transform: rotate(180deg); }
+  .ms-menu {
+    position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); max-height: 220px; overflow: auto; padding: .3rem;
+  }
+  .ms-opt {
+    display: flex; align-items: center; gap: .55rem;
+    padding: .5rem .55rem; min-height: 36px; border-radius: 8px;
+    font-size: .85rem; font-weight: 500; color: var(--ink); cursor: pointer;
+  }
+  .ms-opt:hover { background: var(--line-soft); }
+  .ms-opt input { margin: 0; }
+  .ms-empty { padding: .55rem .6rem; font-size: .78rem; color: var(--muted); font-weight: 400; }
   @media (max-width: 640px) { .seg { flex-direction: column; } }
 </style>
 <div class="page-head">
-  <div><h1><%= row && row.id ? t('edit') : t('add') %> — <%= t('nav_employees') %></h1></div>
+  <div><h1><%= row && row.id ? t('edit') : t('add') %> - <%= t('nav_employees') %></h1></div>
   <div class="page-actions"><a class="btn" href="/ui/employees">← <%= t('back') %></a></div>
 </div>
 <% if (error) { %><div class="alert error"><%= error %></div><% } %>
@@ -47,7 +86,7 @@
             <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
           <% }) %>
         </select>
-        <div class="help">Pilih perusahaan dulu; posisi, lokasi, jadwal, dan atasan mengikuti perusahaan ini.</div>
+        <div class="help"><%= t('company_first_help') %></div>
       </div>
       <% } %>
       <div class="field full"><%= t('name') %>
@@ -74,7 +113,7 @@
       </div>
       <div class="field">NIP
         <input type="text" name="nip" maxlength="64" value="<%= row ? row.nip : '' %>" />
-        <div class="help">Opsional, sesuai ID payroll.</div>
+        <div class="help"><%= t('nip_help') %></div>
       </div>
       <div class="field"><%= t('active_label') %>
         <div class="seg">
@@ -91,11 +130,11 @@
       </div>
     </div>
 
-    <div class="form-sec blocked">Akses & penempatan</div>
+    <div class="form-sec blocked"><%= t('section_access') %></div>
     <div class="form-grid">
-      <div class="field full">Password
+      <div class="field full"><%= t('password') %>
         <input type="password" name="password" minlength="8" <%= row ? '' : 'required' %> />
-        <div class="help"><%= row ? 'Kosongkan jika password tidak berubah.' : 'Minimal 8 karakter.' %></div>
+        <div class="help"><%= row ? t('password_keep_help') : t('password_min_help') %></div>
       </div>
       <div class="field"><%= t('role') %>
         <select name="role">
@@ -108,11 +147,29 @@
       <div class="field"><%= t('location') %>
         <select name="location_id"><option value="">-</option><% locations.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.locationId === v.id ? 'selected' : '' %>><%= v.name %></option><% }) %></select>
       </div>
-      <div class="field">Jadwal kerja
-        <select name="schedule_id"><option value="">-</option><% schedules.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.scheduleId === v.id ? 'selected' : '' %>><%= v.name %></option><% }) %></select>
-      </div>
-      <div class="field">Atasan langsung
+      <div class="field"><%= t('direct_lead_label') %>
         <select name="direct_lead_id"><option value="">-</option><% leads.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.directLeadId === v.id ? 'selected' : '' %>><%= v.namaLengkap %></option><% }) %></select>
+      </div>
+      <div class="field full"><%= t('schedule_label') %>
+        <% if (schedules.length) { %>
+        <div class="ms" id="schedMs">
+          <button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false" data-ph="<%= t('pick_schedules') %>">
+            <span class="ms-val ph"><%= t('pick_schedules') %></span>
+            <span class="ms-caret" aria-hidden="true"></span>
+          </button>
+          <div class="ms-menu" hidden>
+            <% schedules.forEach(function(v) { %>
+              <label class="ms-opt">
+                <input type="checkbox" name="schedule_ids" value="<%= v.id %>" <%= scheduleIds && scheduleIds.indexOf(v.id) !== -1 ? 'checked' : '' %> />
+                <span><%= v.name %></span>
+              </label>
+            <% }) %>
+          </div>
+        </div>
+        <% } else { %>
+        <div class="ms-empty"><%= t('empty_schedules') %></div>
+        <% } %>
+        <div class="help"><%= t('schedule_multi_help') %></div>
       </div>
     </div>
 
@@ -124,13 +181,40 @@
 </div>
 <script>
 (function () {
-  document.querySelectorAll('input[name="is_active"]').forEach(function (r) {
-    r.addEventListener('change', function () {
-      document.querySelectorAll('.seg-opt').forEach(function (l) {
-        l.classList.toggle('on', l.querySelector('input').checked);
-      });
+  document.querySelectorAll('.seg-opt input').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      inp.closest('.seg-opt').classList.toggle('on', inp.checked);
     });
   });
+  var ms = document.getElementById('schedMs');
+  if (ms) {
+    var msBtn = ms.querySelector('.ms-btn');
+    var msMenu = ms.querySelector('.ms-menu');
+    var msVal = ms.querySelector('.ms-val');
+    var msClose = function () {
+      msMenu.hidden = true;
+      ms.classList.remove('open');
+      msBtn.setAttribute('aria-expanded', 'false');
+    };
+    var msSync = function () {
+      var picks = [];
+      msMenu.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+        if (cb.checked) picks.push(cb.parentNode.querySelector('span').textContent);
+      });
+      msVal.textContent = picks.length ? picks.join(', ') : msBtn.getAttribute('data-ph');
+      msVal.classList.toggle('ph', picks.length === 0);
+    };
+    msBtn.addEventListener('click', function () {
+      var willOpen = msMenu.hidden;
+      msMenu.hidden = !willOpen;
+      ms.classList.toggle('open', willOpen);
+      msBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+    msMenu.addEventListener('change', msSync);
+    document.addEventListener('click', function (e) { if (!ms.contains(e.target)) msClose(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') msClose(); });
+    msSync();
+  }
   var co = document.getElementById('companyId');
   if (co) co.addEventListener('change', function () {
     location.href = location.pathname + (co.value ? '?companyId=' + encodeURIComponent(co.value) : '');

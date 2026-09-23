@@ -72,11 +72,14 @@ export class AttendanceService {
 
     let slots: ScheduleSlot[] = [];
 
-    // primary: user's assigned schedule details (fallback path of PHP multi-schedule table)
-    if (user.scheduleId) {
+    // multi-schedule assignments (legacy user_jam_kerja), else single users.schedule_id
+    const assigned = await c.userSchedule.findMany({ where: { userId, isActive: true }, orderBy: { id: 'asc' } });
+    const assignedIds = assigned.map((a: any) => a.scheduleId);
+    if (assignedIds.length === 0 && user.scheduleId) assignedIds.push(user.scheduleId);
+    if (assignedIds.length > 0) {
       const details = await c.scheduleDetail.findMany({
         where: {
-          scheduleId: user.scheduleId,
+          scheduleId: { in: assignedIds },
           dayOfWeek: day as any,
           isActive: true,
         },
