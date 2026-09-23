@@ -3,7 +3,7 @@
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
   .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
-  .field input, .field select {
+  .field input, .field select, .field textarea {
     border: 1px solid transparent;
     background: var(--line-soft);
     border-radius: 10px;
@@ -14,9 +14,10 @@
     color: var(--ink);
     transition: background .15s, border-color .15s;
   }
+  .field textarea { min-height: 76px; resize: vertical; }
   .field input::placeholder { color: var(--faint); }
-  .field input:hover, .field select:hover { border-color: var(--line); }
-  .field input:focus, .field select:focus { background: var(--card); border-color: var(--brand-2); }
+  .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus, .field textarea:focus { background: var(--card); border-color: var(--brand-2); }
   .seg { display: flex; gap: .5rem; }
   .seg-opt {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
@@ -55,6 +56,22 @@
       <div class="field full"><%= t('email') %>
         <input type="email" name="email" required maxlength="190" value="<%= row ? row.email : '' %>" />
       </div>
+      <div class="field"><%= t('tempat_lahir') %>
+        <input type="text" name="place_of_birth" maxlength="40" value="<%= row && row.placeOfBirth ? row.placeOfBirth : '' %>" />
+      </div>
+      <div class="field"><%= t('tanggal_lahir') %>
+        <input type="date" name="date_of_birth" value="<%= row && row.dateOfBirth ? row.dateOfBirth.toISOString().slice(0, 10) : '' %>" />
+      </div>
+      <div class="field"><%= t('jenis_kelamin') %>
+        <select name="gender">
+          <option value="" <%= row && row.gender ? '' : 'selected' %>>-</option>
+          <option value="Laki-laki" <%= row && row.gender === 'Laki-laki' ? 'selected' : '' %>>Laki-laki</option>
+          <option value="Perempuan" <%= row && row.gender === 'Perempuan' ? 'selected' : '' %>>Perempuan</option>
+        </select>
+      </div>
+      <div class="field"><%= t('phone_label') %>
+        <input type="tel" name="phone" maxlength="32" value="<%= row && row.phone ? row.phone : '' %>" />
+      </div>
       <div class="field">NIP
         <input type="text" name="nip" maxlength="64" value="<%= row ? row.nip : '' %>" />
         <div class="help">Opsional, sesuai ID payroll.</div>
@@ -68,6 +85,9 @@
             <input type="radio" name="is_active" value="N" <%= row && !row.isActive ? 'checked' : '' %> /><%= t('no') %>
           </label>
         </div>
+      </div>
+      <div class="field full"><%= t('address') %>
+        <textarea name="address" maxlength="2000" rows="3"><%= row && row.address ? row.address : '' %></textarea>
       </div>
     </div>
 

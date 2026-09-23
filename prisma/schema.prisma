@@ -58,6 +58,10 @@ model User {
   locationId             Int?      @map("location_id")
   scheduleId             Int?      @map("schedule_id")
   phone                  String?   @db.VarChar(32)
+  placeOfBirth           String?   @map("place_of_birth") @db.VarChar(40)
+  dateOfBirth            DateTime? @map("date_of_birth") @db.Date
+  gender                 String?   @db.VarChar(10) // Laki-laki|Perempuan (legacy)
+  address                String?   @db.Text
   avatarUrl              String?   @map("avatar_url") @db.VarChar(500)
   isActive               Boolean   @default(true) @map("is_active")
   langPref               String    @default("id") @map("lang_pref") @db.VarChar(5)

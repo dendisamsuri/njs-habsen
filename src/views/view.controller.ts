@@ -126,6 +126,10 @@ function tr(key: string, locale: string): string {
     toggle: { id: 'Aktif/Nonaktif', en: 'Toggle' },
     confirm_delete: { id: 'Hapus data ini?', en: 'Delete this record?' },
     address: { id: 'Alamat Lengkap', en: 'Full Address' },
+    tempat_lahir: { id: 'Tempat Lahir', en: 'Place of Birth' },
+    tanggal_lahir: { id: 'Tanggal Lahir', en: 'Date of Birth' },
+    jenis_kelamin: { id: 'Jenis Kelamin', en: 'Gender' },
+    phone_label: { id: 'No. Telp', en: 'Phone Number' },
     location_name: { id: 'Nama Lokasi', en: 'Location Name' },
     map_pick: { id: 'Klik peta untuk isi koordinat', en: 'Click map to fill coordinates' },
     active_label: { id: 'Status Aktif', en: 'Active Status' },
@@ -539,7 +543,18 @@ export class ViewController {
       return res.redirect('/ui/employees?error=VALIDATION_ERROR');
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
-    await this.prisma.user.create({ data: { companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' } });
+    const dobRaw = String(body.date_of_birth ?? '').trim();
+    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
+    const gender = ['Laki-laki', 'Perempuan'].includes(String(body.gender ?? '')) ? body.gender : null;
+    await this.prisma.user.create({ data: {
+      companyId, email, namaLengkap: name, nip: body.nip || null,
+      placeOfBirth: String(body.place_of_birth ?? '').trim() || null,
+      dateOfBirth: dobRaw ? new Date(`${dobRaw}T00:00:00.000Z`) : null,
+      gender,
+      phone: String(body.phone ?? '').trim() || null,
+      address: String(body.address ?? '').trim() || null,
+      passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N',
+    } });
     return res.redirect('/ui/employees');
   }
 
@@ -568,7 +583,18 @@ export class ViewController {
       return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
-    const data: any = { companyId, email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' };
+    const dobRaw = String(body.date_of_birth ?? '').trim();
+    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
+    const gender = ['Laki-laki', 'Perempuan'].includes(String(body.gender ?? '')) ? body.gender : null;
+    const data: any = {
+      companyId, email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null,
+      placeOfBirth: String(body.place_of_birth ?? '').trim() || null,
+      dateOfBirth: dobRaw ? new Date(`${dobRaw}T00:00:00.000Z`) : null,
+      gender,
+      phone: String(body.phone ?? '').trim() || null,
+      address: String(body.address ?? '').trim() || null,
+      role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N',
+    };
     if (String(body.password ?? '')) data.passwordHash = await bcrypt.hash(String(body.password), 12);
     await this.prisma.user.update({ where: { id }, data });
     return res.redirect('/ui/employees');
