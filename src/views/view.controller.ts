@@ -29,6 +29,9 @@ const NAV = [
   { href: '/ui/dashboard', key: 'nav_dashboard' },
   { href: '/ui/reports', key: 'nav_reports' },
   { href: '/ui/approvals', key: 'nav_approvals' },
+  { href: '/ui/approvals/leaves', key: 'nav_apv_leaves' },
+  { href: '/ui/approvals/permission', key: 'nav_apv_permission' },
+  { href: '/ui/approvals/replacement-off', key: 'nav_apv_replacement' },
   { href: '/ui/leaves', key: 'nav_leaves' },
   { href: '/ui/users', key: 'nav_users' },
   { href: '/ui/locations', key: 'nav_locations' },
@@ -49,6 +52,9 @@ function tr(key: string, locale: string): string {
     nav_dashboard: { id: 'Dashboard', en: 'Dashboard' },
     nav_reports: { id: 'Laporan', en: 'Reports' },
     nav_approvals: { id: 'Persetujuan', en: 'Approvals' },
+    nav_apv_leaves: { id: 'Cuti', en: 'Leaves' },
+    nav_apv_permission: { id: 'Izin', en: 'Permission' },
+    nav_apv_replacement: { id: 'Replacement Off', en: 'Replacement Off' },
     nav_leaves: { id: 'Cuti', en: 'Leaves' },
     nav_users: { id: 'Karyawan', en: 'Employees' },
     nav_locations: { id: 'Lokasi', en: 'Locations' },
@@ -700,28 +706,73 @@ export class ViewController {
   }
 
   @Get('approvals')
-  async approvalsPage(@Req() req: Request, @Res() res: Response) {
+  approvalsIndex(@Res() res: Response) {
+    return res.redirect('/ui/approvals/leaves');
+  }
+
+  @Get('approvals/leaves')
+  async approvalsLeavesPage(@Req() req: Request, @Res() res: Response) {
+    return this.approvalsPage(req, res, 'leave');
+  }
+
+  @Get('approvals/permission')
+  async approvalsPermissionPage(@Req() req: Request, @Res() res: Response) {
+    return this.approvalsPage(req, res, 'permission');
+  }
+
+  @Get('approvals/replacement-off')
+  async approvalsReplacementPage(@Req() req: Request, @Res() res: Response) {
+    return this.approvalsPage(req, res, 'replacement');
+  }
+
+  private async approvalsPage(req: Request, res: Response, kind: 'leave' | 'permission' | 'replacement') {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const locale = this.locale(req);
-    const rows = await this.prisma.leaveRequest.findMany({
-      where: this.tenantWhere(user, {
-        deletedAt: null,
-        status: { in: ['pending', 'waiting_hr'] as any },
-        ...(user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {}),
-      }),
-      include: {
-        leaveType: true,
-        user: { select: { namaLengkap: true } },
-        company: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
-    });
-    return res.render('approvals', {
-      ...this.helpers(locale),
-      user: { nama_lengkap: user.namaLengkap, role: user.role },
-      rows: rows.map((r) => ({
+    const status = { in: ['pending', 'waiting_hr'] as any };
+    const sup = user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {};
+    let rows: any[] = [];
+    if (kind === 'replacement') {
+      const data = await this.prisma.replacementOff.findMany({
+        where: this.tenantWhere(user, { deletedAt: null, status, ...sup }),
+        include: {
+          user: { select: { namaLengkap: true } },
+          company: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      });
+      rows = data.map((r) => ({
+        id: r.id,
+        nama_lengkap: r.user.namaLengkap,
+        company: r.company?.name ?? '-',
+        jenis: 'Replacement Off',
+        start_date: r.originalDate.toISOString().slice(0, 10),
+        end_date: r.replacementDate ? r.replacementDate.toISOString().slice(0, 10) : '-',
+        status: r.status,
+        reason: r.reason || r.employeeNote || '-',
+      }));
+    } else {
+      const leaveType =
+        kind === 'leave'
+          ? { category: 'LEAVE' as any }
+          : { category: { in: ['PERMIT', 'SICK'] as any } };
+      const data = await this.prisma.leaveRequest.findMany({
+        where: this.tenantWhere(user, {
+          deletedAt: null,
+          status,
+          ...sup,
+          leaveType,
+        }),
+        include: {
+          leaveType: true,
+          user: { select: { namaLengkap: true } },
+          company: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      });
+      rows = data.map((r) => ({
         id: r.id,
         nama_lengkap: r.user.namaLengkap,
         company: r.company?.name ?? '-',
@@ -730,8 +781,15 @@ export class ViewController {
         end_date: r.endDate.toISOString().slice(0, 10),
         status: r.status,
         reason: r.reason,
-      })),
-      page: 'approvals',
+      }));
+    }
+    const slug = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    return res.render('approvals', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      rows,
+      kind,
+      page: `approvals/${slug}`,
     });
   }
 
@@ -741,11 +799,12 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const id = Number((req.params as any).id);
+    const kind = ['leave', 'permission', 'replacement'].includes(body?.kind) ? body.kind : 'leave';
     const decision = body?.decision === 'rejected' ? 'rejected' : 'approved';
     const comment =
       String(body?.comment ?? '') || (decision === 'rejected' ? 'Ditolak via dashboard' : '');
     await this.approvals.transition(
-      'LEAVE',
+      kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',
       id,
       decision,
       {
@@ -756,7 +815,8 @@ export class ViewController {
       },
       comment,
     );
-    return res.redirect('/ui/approvals');
+    const slug = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    return res.redirect(`/ui/approvals/${slug}`);
   }
 
   @Get('reports')

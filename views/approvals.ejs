@@ -7,7 +7,7 @@
     return 'gray'; }
 %>
 <div class="page-head">
-  <div><h1><%= t('nav_approvals') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
+  <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permission' ? t('nav_apv_permission') : t('nav_apv_replacement') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
 </div>
 <div class="card">
   <div class="table-toolbar"><b>Antrean persetujuan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
@@ -24,8 +24,8 @@
           <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
           <td style="max-width:240px;"><%= r.reason %></td>
           <td><div class="row-actions">
-            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
-            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>
           </div></td>
         </tr>
       <% }) %>
