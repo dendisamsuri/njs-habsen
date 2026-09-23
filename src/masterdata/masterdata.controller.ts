@@ -10,10 +10,11 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, MaxLength, IsIn } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, MaxLength, IsIn } from 'class-validator';
 import { Roles } from '../common/roles.guard';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
+import * as bcrypt from 'bcryptjs';
 
 const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -74,6 +75,26 @@ class CompanySettingDto {
   @IsOptional() @IsBoolean() require_hr_final?: boolean;
 }
 
+class EmployeeDto {
+  @IsEmail() email!: string;
+  @IsString() @IsNotEmpty() nama_lengkap!: string;
+  @IsOptional() @IsString() nip?: string;
+  @IsOptional() @IsString() password?: string;
+  @IsOptional() @IsIn(['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'] as any) role?: any;
+  @IsOptional() @IsInt() position_id?: number;
+  @IsOptional() @IsInt() location_id?: number;
+  @IsOptional() @IsInt() schedule_id?: number;
+  @IsOptional() @IsInt() direct_lead_id?: number;
+  @IsOptional() @IsBoolean() is_active?: boolean;
+}
+
+class LeaveEntitlementDto {
+  @IsInt() user_id!: number;
+  @IsInt() leave_type_id!: number;
+  @IsInt() year!: number;
+  @IsOptional() entitlement?: number;
+}
+
 @Roles('PLATFORM_ADMIN', 'COMPANY_ADMIN')
 @Controller('admin')
 export class MasterdataController {
@@ -86,6 +107,71 @@ export class MasterdataController {
   private cid(req: any): number {
     if (!req.user?.companyId) throw err('FORBIDDEN', 403);
     return req.user.companyId;
+  }
+
+  @Get('employees')
+  async employees(@Req() req: any, @Query('q') q?: string) {
+    const where: any = { companyId: this.cid(req), deletedAt: null };
+    if (q) where.OR = [{ namaLengkap: { contains: q } }, { email: { contains: q } }, { nip: { contains: q } }];
+    return this.c().user.findMany({
+      where,
+      include: { position: true, location: true, schedule: true, directLead: { select: { id: true, namaLengkap: true } } },
+      orderBy: { namaLengkap: 'asc' },
+    });
+  }
+
+  @Post('employees')
+  async createEmployee(@Req() req: any, @Body() dto: EmployeeDto) {
+    const companyId = this.cid(req);
+    if (!dto.password) throw err('VALIDATION_ERROR', 400);
+    return this.c().user.create({
+      data: {
+        companyId, email: dto.email.toLowerCase().trim(), namaLengkap: dto.nama_lengkap.trim(), nip: dto.nip,
+        passwordHash: await bcrypt.hash(dto.password, 12), role: dto.role ?? 'EMPLOYEE',
+        positionId: dto.position_id, locationId: dto.location_id, scheduleId: dto.schedule_id,
+        directLeadId: dto.direct_lead_id, isActive: dto.is_active ?? true,
+      },
+    });
+  }
+
+  @Patch('employees/:id')
+  async updateEmployee(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: Partial<EmployeeDto>) {
+    const row = await this.c().user.findFirst({ where: { id, companyId: this.cid(req), deletedAt: null } });
+    if (!row) throw err('USER_NOT_FOUND', 404);
+    const data: any = {};
+    if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
+    if (dto.nama_lengkap !== undefined) data.namaLengkap = dto.nama_lengkap.trim();
+    if (dto.nip !== undefined) data.nip = dto.nip;
+    if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 12);
+    if (dto.role !== undefined) data.role = dto.role;
+    if (dto.position_id !== undefined) data.positionId = dto.position_id;
+    if (dto.location_id !== undefined) data.locationId = dto.location_id;
+    if (dto.schedule_id !== undefined) data.scheduleId = dto.schedule_id;
+    if (dto.direct_lead_id !== undefined) data.directLeadId = dto.direct_lead_id;
+    if (dto.is_active !== undefined) data.isActive = dto.is_active;
+    return this.c().user.update({ where: { id }, data });
+  }
+
+  @Get('leave-entitlements')
+  async leaveEntitlements(@Req() req: any, @Query('year') year?: string, @Query('user_id') userId?: string) {
+    const where: any = { companyId: this.cid(req), year: Number(year) || new Date().getFullYear() };
+    if (userId) where.userId = Number(userId);
+    return this.c().leaveBalance.findMany({ where, include: { user: true, leaveType: true }, orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }] });
+  }
+
+  @Post('leave-entitlements')
+  async upsertLeaveEntitlement(@Req() req: any, @Body() dto: LeaveEntitlementDto) {
+    const companyId = this.cid(req);
+    const [user, leaveType] = await Promise.all([
+      this.c().user.findFirst({ where: { id: dto.user_id, companyId, deletedAt: null } }),
+      this.c().leaveType.findFirst({ where: { id: dto.leave_type_id, companyId } }),
+    ]);
+    if (!user || !leaveType) throw err('VALIDATION_ERROR', 400);
+    return this.c().leaveBalance.upsert({
+      where: { companyId_userId_leaveTypeId_year: { companyId, userId: dto.user_id, leaveTypeId: dto.leave_type_id, year: dto.year } },
+      create: { companyId, userId: dto.user_id, leaveTypeId: dto.leave_type_id, year: dto.year, entitlement: dto.entitlement ?? 0 },
+      update: { entitlement: dto.entitlement ?? 0 },
+    });
   }
 
   // ---- positions ----

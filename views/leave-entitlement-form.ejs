@@ -1,0 +1,65 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input, .field select {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    font-size: .88rem;
+    font-family: inherit;
+    color: var(--ink);
+    transition: background .15s, border-color .15s;
+  }
+  .field input::placeholder { color: var(--faint); }
+  .field input:hover, .field select:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus { background: var(--card); border-color: var(--brand-2); }
+  .field input:disabled, .field select:disabled { opacity: .6; }
+</style>
+<div class="page-head">
+  <div><h1><%= row && row.id ? t('edit') : t('add') %> — <%= t('nav_leave_entitlements') %></h1></div>
+  <div class="page-actions"><a class="btn" href="/ui/leave-entitlements">← <%= t('back') %></a></div>
+</div>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card card-pad" style="max-width:720px;">
+  <form method="post" action="<%= row && row.id ? '/ui/leave-entitlements/' + row.id : '/ui/leave-entitlements' %>">
+    <div class="form-sec"><%= t('section_identity') %></div>
+    <div class="form-grid">
+      <div class="field full"><%= t('employee') %>
+        <select name="user_id" required <%= row ? 'disabled' : '' %>>
+          <option value="">-</option>
+          <% employees.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.userId === v.id ? 'selected' : '' %>><%= v.namaLengkap %> (<%= v.email %>)</option><% }) %>
+        </select>
+        <% if (row) { %><div class="help">Employee tidak dapat diubah; hapus lalu buat ulang.</div><% } %>
+      </div>
+      <div class="field full">Tipe cuti
+        <select name="leave_type_id" required <%= row ? 'disabled' : '' %>>
+          <option value="">-</option>
+          <% leaveTypes.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.leaveTypeId === v.id ? 'selected' : '' %>><%= v.name %></option><% }) %>
+        </select>
+        <% if (row) { %><div class="help">Hanya tipe cuti aktif yang dapat dipilih.</div><% } %>
+      </div>
+    </div>
+
+    <div class="form-sec blocked">Kuota tahunan</div>
+    <div class="form-grid">
+      <div class="field">Tahun
+        <input type="number" name="year" min="2000" max="2100" required readonly value="<%= row ? row.year : new Date().getFullYear() %>" />
+        <div class="help">Ditentukan saat pertama dibuat.</div>
+      </div>
+      <div class="field">Entitlement
+        <input type="number" name="entitlement" min="0" step="0.5" required value="<%= row ? Number(row.entitlement) : 0 %>" />
+        <div class="help">Jatah maksimal; tidak boleh kurang dari yang terpakai.</div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><%= t('save') %></button>
+      <a class="btn" href="/ui/leave-entitlements"><%= t('cancel') %></a>
+    </div>
+  </form>
+</div>
+<%- include('partials/footer') %>

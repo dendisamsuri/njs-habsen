@@ -1,0 +1,10 @@
+<%- include('partials/header') %>
+<div class="page-head"><div><h1><%= t('nav_leave_entitlements') %></h1><p class="sub">Tahun <%= year %></p></div><% if (canEdit) { %><div class="page-actions"><a class="btn primary" href="/ui/leave-entitlements/new"><%= t('add') %></a></div><% } %></div>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card"><div class="table-toolbar"><b>Jatah cuti per employee</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty">Belum ada jatah cuti untuk tahun ini.</div><% } else { %>
+  <div class="table-wrap"><table class="tbl"><thead><tr><th><%= t('employee') %></th><th>Tipe cuti</th><th>Tahun</th><th>Entitlement</th><th>Terpakai</th><th>Sisa</th><th><%= t('actions') %></th></tr></thead>
+  <tbody><% rows.forEach(function(r) { %><tr><td><b><%= r.employee %></b></td><td><%= r.type %></td><td class="mono"><%= r.year %></td><td class="mono"><%= r.entitlement %></td><td class="mono"><%= r.taken %></td><td class="mono"><%= r.remaining %></td><td><% if (canEdit) { %><div class="row-actions"><a class="btn" href="/ui/leave-entitlements/<%= r.id %>/edit"><%= t('edit') %></a><form method="post" action="/ui/leave-entitlements/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('confirm_delete') %>')"><button type="submit" class="danger"><%= t('delete') %></button></form></div><% } else { %>-<% } %></td></tr><% }) %></tbody>
+  </table></div><% } %>
+</div>
+<%- include('partials/footer') %>

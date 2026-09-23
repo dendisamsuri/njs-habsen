@@ -32,6 +32,8 @@ const NAV = [
   { href: '/ui/locations', key: 'nav_locations' },
   { href: '/ui/schedules', key: 'nav_schedules' },
   { href: '/ui/positions', key: 'nav_positions' },
+  { href: '/ui/employees', key: 'nav_employees' },
+  { href: '/ui/leave-entitlements', key: 'nav_leave_entitlements' },
   { href: '/ui/leave-types', key: 'nav_leave_types' },
   { href: '/ui/holidays', key: 'nav_holidays' },
   { href: '/ui/process-logs', key: 'nav_process_logs' },
@@ -50,6 +52,8 @@ function tr(key: string, locale: string): string {
     nav_locations: { id: 'Lokasi', en: 'Locations' },
     nav_schedules: { id: 'Jadwal Kerja', en: 'Work Schedules' },
     nav_positions: { id: 'Posisi', en: 'Positions' },
+    nav_employees: { id: 'Employees', en: 'Employees' },
+    nav_leave_entitlements: { id: 'Jatah Cuti', en: 'Leave Entitlements' },
     nav_leave_types: { id: 'Tipe Cuti', en: 'Leave Types' },
     nav_holidays: { id: 'Libur', en: 'Holidays' },
     nav_process_logs: { id: 'Process Log', en: 'Process Log' },
@@ -427,6 +431,189 @@ export class ViewController {
       })),
       page: 'users',
     });
+  }
+
+  @Get('employees')
+  async employeesPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    const locale = this.locale(req);
+    const rows = await this.prisma.user.findMany({
+      where: this.tenantWhere(user, { deletedAt: null, role: { not: 'PLATFORM_ADMIN' } }),
+      include: { position: true, location: true, schedule: true, directLead: { select: { namaLengkap: true } } },
+      orderBy: { namaLengkap: 'asc' }, take: 200,
+    });
+    return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
+      id: r.id, nama_lengkap: r.namaLengkap, email: r.email, nip: r.nip ?? '-', role: r.role,
+      posisi: r.position?.name ?? '-', lokasi: r.location?.name ?? '-', jadwal: r.schedule?.name ?? '-',
+      lead: r.directLead?.namaLengkap ?? '-', is_active: r.isActive,
+    })), page: 'employees' });
+  }
+
+  private async employeeFormData(user: any, row: any = null) {
+    return {
+      row,
+      positions: await this.prisma.position.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
+      locations: await this.prisma.location.findMany({ where: this.tenantWhere(user, { status: 'Y' }), orderBy: { name: 'asc' } }),
+      schedules: await this.prisma.schedule.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
+      leads: await this.prisma.user.findMany({ where: this.tenantWhere(user, { deletedAt: null, role: { in: ['SUPERVISOR', 'COMPANY_ADMIN'] as any } }), orderBy: { namaLengkap: 'asc' } }),
+    };
+  }
+
+  @Get('employees/new')
+  async employeeNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const locale = this.locale(req);
+    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user)), error: null, page: 'employees' });
+  }
+
+  @Get('employees/:id/edit')
+  async employeeEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id: Number(req.params.id), deletedAt: null }) });
+    if (!row) return res.redirect('/ui/employees');
+    const locale = this.locale(req);
+    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, row)), error: null, page: 'employees' });
+  }
+
+  @Post('employees')
+  @HttpCode(302)
+  async employeeCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const name = String(body.nama_lengkap ?? '').trim();
+    const password = String(body.password ?? '');
+    if (!email || !name || password.length < 8) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+    if (exists) return res.redirect('/ui/employees?error=DUPLICATE');
+    await this.prisma.user.create({ data: { companyId: user.companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role: body.role || 'EMPLOYEE', positionId: Number(body.position_id) || null, locationId: Number(body.location_id) || null, scheduleId: Number(body.schedule_id) || null, directLeadId: Number(body.direct_lead_id) || null, isActive: body.is_active !== 'N' } });
+    return res.redirect('/ui/employees');
+  }
+
+  @Post('employees/:id')
+  @HttpCode(302)
+  async employeeUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const id = Number(req.params.id);
+    const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
+    if (!row) return res.redirect('/ui/employees');
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const exists = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
+    if (exists) return res.redirect(`/ui/employees/${id}/edit?error=DUPLICATE`);
+    const data: any = { email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role: body.role || 'EMPLOYEE', positionId: Number(body.position_id) || null, locationId: Number(body.location_id) || null, scheduleId: Number(body.schedule_id) || null, directLeadId: Number(body.direct_lead_id) || null, isActive: body.is_active !== 'N' };
+    if (String(body.password ?? '')) data.passwordHash = await bcrypt.hash(String(body.password), 12);
+    await this.prisma.user.update({ where: { id }, data });
+    return res.redirect('/ui/employees');
+  }
+
+  @Post('employees/:id/toggle')
+  @HttpCode(302)
+  async employeeToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const id = Number(req.params.id);
+    const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
+    if (row) await this.prisma.user.update({ where: { id }, data: { isActive: !row.isActive } });
+    return res.redirect('/ui/employees');
+  }
+
+  @Post('employees/:id/delete')
+  @HttpCode(302)
+  async employeeDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    const id = Number(req.params.id);
+    const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
+    if (row) await this.prisma.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    return res.redirect('/ui/employees');
+  }
+
+  @Get('leave-entitlements')
+  async leaveEntitlementsPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    const locale = this.locale(req);
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const rows = await this.prisma.leaveBalance.findMany({
+      where: this.tenantWhere(user, { year }), include: { user: true, leaveType: true },
+      orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }], take: 500,
+    });
+    return res.render('leave-entitlements', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, year, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
+      id: r.id, employee: r.user.namaLengkap, type: r.leaveType.name, year: r.year,
+      entitlement: Number(r.entitlement), taken: Number(r.taken), remaining: r.remaining == null ? Number(r.entitlement) - Number(r.taken) : Number(r.remaining),
+    })), page: 'leave-entitlements' });
+  }
+
+  @Get('leave-entitlements/new')
+  async leaveEntitlementNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
+    const locale = this.locale(req);
+    const [employees, leaveTypes] = await Promise.all([
+      this.prisma.user.findMany({ where: this.tenantWhere(user, { deletedAt: null, role: { not: 'PLATFORM_ADMIN' } }), orderBy: { namaLengkap: 'asc' } }),
+      this.prisma.leaveType.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
+    ]);
+    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, employees, leaveTypes, row: null, error: null, page: 'leave-entitlements' });
+  }
+
+  @Get('leave-entitlements/:id/edit')
+  async leaveEntitlementEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
+    const id = Number(req.params.id);
+    const [row, employees, leaveTypes] = await Promise.all([
+      this.prisma.leaveBalance.findFirst({ where: this.tenantWhere(user, { id }) }),
+      this.prisma.user.findMany({ where: this.tenantWhere(user, { deletedAt: null, role: { not: 'PLATFORM_ADMIN' } }), orderBy: { namaLengkap: 'asc' } }),
+      this.prisma.leaveType.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
+    ]);
+    if (!row) return res.redirect('/ui/leave-entitlements');
+    const locale = this.locale(req);
+    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, employees, leaveTypes, row, error: req.query.error ? String(req.query.error) : null, page: 'leave-entitlements' });
+  }
+
+  @Post('leave-entitlements')
+  @HttpCode(302)
+  async leaveEntitlementCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
+    const userId = Number(body.user_id), leaveTypeId = Number(body.leave_type_id), year = Number(body.year), entitlement = Number(body.entitlement);
+    if (!userId || !leaveTypeId || !year || !Number.isFinite(entitlement) || entitlement < 0) return res.redirect('/ui/leave-entitlements?error=VALIDATION_ERROR');
+    const target = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id: userId, deletedAt: null }) });
+    const type = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id: leaveTypeId }) });
+    if (!target || !type) return res.redirect('/ui/leave-entitlements?error=VALIDATION_ERROR');
+    await this.prisma.leaveBalance.upsert({ where: { companyId_userId_leaveTypeId_year: { companyId: target.companyId!, userId, leaveTypeId, year } }, create: { companyId: target.companyId!, userId, leaveTypeId, year, entitlement }, update: { entitlement } });
+    return res.redirect(`/ui/leave-entitlements?year=${year}`);
+  }
+
+  @Post('leave-entitlements/:id')
+  @HttpCode(302)
+  async leaveEntitlementUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
+    const id = Number(req.params.id);
+    const row = await this.prisma.leaveBalance.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!row) return res.redirect('/ui/leave-entitlements');
+    const entitlement = Number(body.entitlement);
+    if (!Number.isFinite(entitlement) || entitlement < Number(row.taken)) return res.redirect(`/ui/leave-entitlements/${id}/edit?error=VALIDATION_ERROR`);
+    await this.prisma.leaveBalance.update({ where: { id }, data: { entitlement } });
+    return res.redirect(`/ui/leave-entitlements?year=${row.year}`);
+  }
+
+  @Post('leave-entitlements/:id/delete')
+  @HttpCode(302)
+  async leaveEntitlementDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
+    const id = Number(req.params.id);
+    const row = await this.prisma.leaveBalance.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!row) return res.redirect('/ui/leave-entitlements');
+    if (Number(row.taken) > 0) return res.redirect(`/ui/leave-entitlements?year=${row.year}&error=IN_USE`);
+    await this.prisma.leaveBalance.delete({ where: { id } });
+    return res.redirect(`/ui/leave-entitlements?year=${row.year}`);
   }
 
   @Get('leaves')
