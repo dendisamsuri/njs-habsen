@@ -38,6 +38,17 @@
   <form method="post" action="<%= row && row.id ? '/ui/employees/' + row.id : '/ui/employees' %>">
     <div class="form-sec"><%= t('section_identity') %></div>
     <div class="form-grid">
+      <% if (typeof companies !== 'undefined' && companies) { %>
+      <div class="field full"><%= t('company_label') %>
+        <select name="companyId" id="companyId" required>
+          <option value="" <%= companyId ? '' : 'selected' %>>-</option>
+          <% companies.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+        <div class="help">Pilih perusahaan dulu; posisi, lokasi, jadwal, dan atasan mengikuti perusahaan ini.</div>
+      </div>
+      <% } %>
       <div class="field full"><%= t('name') %>
         <input name="nama_lengkap" required maxlength="160" value="<%= row ? row.namaLengkap : '' %>" />
       </div>
@@ -99,6 +110,10 @@
         l.classList.toggle('on', l.querySelector('input').checked);
       });
     });
+  });
+  var co = document.getElementById('companyId');
+  if (co) co.addEventListener('change', function () {
+    location.href = location.pathname + (co.value ? '?companyId=' + encodeURIComponent(co.value) : '');
   });
 })();
 </script>

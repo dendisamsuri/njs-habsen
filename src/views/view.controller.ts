@@ -476,13 +476,21 @@ export class ViewController {
     })), page: 'employees' });
   }
 
-  private async employeeFormData(user: any, row: any = null) {
+  private async employeeFormData(user: any, row: any = null, companyId: number | null = null) {
+    const scopeId = user.companyId ?? companyId ?? row?.companyId ?? null;
+    const companies = user.companyId == null ? await this.companyOptions() : null;
+    if (scopeId == null) {
+      return { row, companies, companyId: null, positions: [], locations: [], schedules: [], leads: [] };
+    }
+    const scope = (extra: Record<string, unknown>) => ({ ...extra, companyId: scopeId });
     return {
       row,
-      positions: await this.prisma.position.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
-      locations: await this.prisma.location.findMany({ where: this.tenantWhere(user, { status: 'Y' }), orderBy: { name: 'asc' } }),
-      schedules: await this.prisma.schedule.findMany({ where: this.tenantWhere(user, { isActive: true }), orderBy: { name: 'asc' } }),
-      leads: await this.prisma.user.findMany({ where: this.tenantWhere(user, { deletedAt: null, role: { in: ['SUPERVISOR', 'COMPANY_ADMIN'] as any } }), orderBy: { namaLengkap: 'asc' } }),
+      companies,
+      companyId: scopeId,
+      positions: await this.prisma.position.findMany({ where: scope({ isActive: true }), orderBy: { name: 'asc' } }),
+      locations: await this.prisma.location.findMany({ where: scope({ status: 'Y' }), orderBy: { name: 'asc' } }),
+      schedules: await this.prisma.schedule.findMany({ where: scope({ isActive: true }), orderBy: { name: 'asc' } }),
+      leads: await this.prisma.user.findMany({ where: scope({ deletedAt: null, role: { in: ['SUPERVISOR', 'COMPANY_ADMIN'] as any } }), orderBy: { namaLengkap: 'asc' } }),
     };
   }
 
@@ -491,7 +499,8 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
     const locale = this.locale(req);
-    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user)), error: null, page: 'employees' });
+    const companyId = await this.mdCompanyId(user, { companyId: req.query.companyId });
+    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, null, companyId)), error: null, page: 'employees' });
   }
 
   @Get('employees/:id/edit')
@@ -501,7 +510,8 @@ export class ViewController {
     const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id: Number(req.params.id), deletedAt: null }) });
     if (!row) return res.redirect('/ui/employees');
     const locale = this.locale(req);
-    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, row)), error: null, page: 'employees' });
+    const companyId = await this.mdCompanyId(user, { companyId: req.query.companyId });
+    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, row, companyId)), error: null, page: 'employees' });
   }
 
   @Post('employees')
@@ -509,7 +519,8 @@ export class ViewController {
   async employeeCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
-    if (!user.companyId) return res.redirect('/ui/employees?error=FORBIDDEN');
+    const companyId = await this.mdCompanyId(user, body);
+    if (companyId == null) return res.redirect('/ui/employees?error=COMPANY_REQUIRED');
     const email = String(body.email ?? '').trim().toLowerCase();
     const name = String(body.nama_lengkap ?? '').trim();
     const password = String(body.password ?? '');
@@ -523,12 +534,12 @@ export class ViewController {
       direct_lead_id: Number(body.direct_lead_id) || null,
     };
     try {
-      await assertEmployeeRefs(this.prisma, user.companyId, refs);
+      await assertEmployeeRefs(this.prisma, companyId, refs);
     } catch {
       return res.redirect('/ui/employees?error=VALIDATION_ERROR');
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
-    await this.prisma.user.create({ data: { companyId: user.companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' } });
+    await this.prisma.user.create({ data: { companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' } });
     return res.redirect('/ui/employees');
   }
 
@@ -537,10 +548,11 @@ export class ViewController {
   async employeeUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
-    if (!user.companyId) return res.redirect('/ui/employees?error=FORBIDDEN');
     const id = Number(req.params.id);
     const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
     if (!row) return res.redirect('/ui/employees');
+    const companyId = (await this.mdCompanyId(user, body)) ?? row.companyId;
+    if (companyId == null) return res.redirect(`/ui/employees/${id}/edit?error=COMPANY_REQUIRED`);
     const email = String(body.email ?? '').trim().toLowerCase();
     const exists = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
     if (exists) return res.redirect(`/ui/employees/${id}/edit?error=DUPLICATE`);
@@ -551,12 +563,12 @@ export class ViewController {
       direct_lead_id: Number(body.direct_lead_id) || null,
     };
     try {
-      await assertEmployeeRefs(this.prisma, user.companyId, refs);
+      await assertEmployeeRefs(this.prisma, companyId, refs);
     } catch {
       return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
-    const data: any = { email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' };
+    const data: any = { companyId, email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' };
     if (String(body.password ?? '')) data.passwordHash = await bcrypt.hash(String(body.password), 12);
     await this.prisma.user.update({ where: { id }, data });
     return res.redirect('/ui/employees');
