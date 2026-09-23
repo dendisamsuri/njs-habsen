@@ -145,6 +145,21 @@ async function main() {
   });
 
   const year = new Date().getFullYear();
+  const holidays = [
+    { tanggal: `${year}-01-01`, name: 'Tahun Baru' },
+    { tanggal: `${year}-05-01`, name: 'Hari Buruh' },
+    { tanggal: `${year}-06-01`, name: 'Hari Lahir Pancasila' },
+    { tanggal: `${year}-08-17`, name: 'Proklamasi Kemerdekaan' },
+    { tanggal: `${year}-12-25`, name: 'Natal' },
+  ];
+  for (const h of holidays) {
+    await prisma.holiday.upsert({
+      where: { companyId_date: { companyId: company.id, date: new Date(`${h.tanggal}T00:00:00.000Z`) } },
+      update: {},
+      create: { companyId: company.id, date: new Date(`${h.tanggal}T00:00:00.000Z`), name: h.name },
+    });
+  }
+
   const cutiTahunan = await prisma.leaveType.findUniqueOrThrow({
     where: { companyId_code: { companyId: company.id, code: 'CUTI_TAHUNAN' } },
   });

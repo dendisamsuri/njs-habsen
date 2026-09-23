@@ -1,10 +1,19 @@
 <%- include('partials/header') %>
-<div class="page-head"><div><h1><%= t('nav_leave_types') %></h1><p class="sub"><%= rows.length %> tipe</p></div></div>
+<%
+  const on = rows.filter(function(r){ return r.is_active; }).length;
+%>
+<div class="page-head">
+  <div><h1><%= t('nav_leave_types') %></h1><p class="sub"><%= on %> aktif · <%= rows.length %> total</p></div>
+  <div class="page-actions">
+    <% if (canEdit) { %><a class="btn primary" href="/ui/leave-types/new"><%= t('add') %></a><% } %>
+  </div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
 <div class="card">
-  <div class="table-toolbar"><b>Tipe cuti</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
+  <div class="table-toolbar"><b>Daftar tipe cuti</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_leave_types') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
-    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th><th><%= t('category') %></th><th><%= t('deductible') %></th><th><%= t('attachment_req') %></th><th><%= t('active') %></th></tr></thead>
+    <thead><tr><th><%= t('code') %></th><th><%= t('name') %></th><th><%= t('company_label') %></th><th><%= t('category') %></th><th style="text-align:center;"><%= t('deductible') %></th><th style="text-align:center;"><%= t('attachment_req') %></th><th style="text-align:center;"><%= t('active_label') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
         <tr>
@@ -12,9 +21,18 @@
           <td><b><%= r.name %></b></td>
           <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge gray"><%= r.category %></span></td>
-          <td><%= r.is_deductible ? 'Y' : 'N' %></td>
-          <td><%= r.requires_attachment ? 'Y' : 'N' %></td>
-          <td><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? 'Y' : 'N' %></span></td>
+          <td style="text-align:center;"><%= r.is_deductible ? 'Y' : 'N' %></td>
+          <td style="text-align:center;"><%= r.requires_attachment ? 'Y' : 'N' %></td>
+          <td style="text-align:center;"><span class="badge <%= r.is_active ? 'green' : 'red' %>"><%= r.is_active ? t('yes') : t('no') %></span></td>
+          <td style="text-align:center;">
+            <% if (canEdit) { %>
+            <div class="row-actions">
+              <a class="btn" href="/ui/leave-types/<%= r.id %>/edit"><%= t('edit') %></a>
+              <form method="post" action="/ui/leave-types/<%= r.id %>/toggle" style="display:inline"><button type="submit"><%= t('toggle') %></button></form>
+              <form method="post" action="/ui/leave-types/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('confirm_delete') %>')"><button type="submit" class="danger"><%= t('delete') %></button></form>
+            </div>
+            <% } else { %>-<% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>

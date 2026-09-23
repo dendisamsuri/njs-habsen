@@ -542,7 +542,9 @@ export class MasterdataController {
     const c = this.c();
     const row = await c.leaveType.findFirst({ where: { id, companyId: this.cid(req) } });
     if (!row) throw err('LEAVE_TYPE_NOT_FOUND', 404);
-    const used = await c.leaveRequest.count({ where: { leaveTypeId: id } });
+    const used =
+      (await c.leaveRequest.count({ where: { leaveTypeId: id } })) +
+      (await c.leaveBalance.count({ where: { leaveTypeId: id } }));
     if (used > 0) throw err('DUPLICATE', 409);
     await c.leaveType.delete({ where: { id } });
     return true;

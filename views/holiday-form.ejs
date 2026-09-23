@@ -1,0 +1,50 @@
+<%- include('partials/header') %>
+<style>
+  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
+  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+  .field input, .field select {
+    border: 1px solid transparent;
+    background: var(--line-soft);
+    border-radius: 10px;
+    padding: .6rem .8rem;
+    min-height: 38px;
+    transition: background .15s, border-color .15s;
+  }
+  .field input::placeholder { color: var(--faint); }
+  .field input:hover, .field select:hover { border-color: var(--line); }
+  .field input:focus, .field select:focus { background: var(--card); border-color: var(--brand-2); }
+</style>
+<div class="page-head">
+  <div><h1><%= row && row.id ? t('edit') : t('add') %> — <%= t('nav_holidays') %></h1></div>
+  <div class="page-actions"><a class="btn" href="/ui/holidays">← <%= t('back') %></a></div>
+</div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<div class="card card-pad" style="max-width:640px;">
+  <form method="post" action="<%= row && row.id ? '/ui/holidays/' + row.id : '/ui/holidays' %>">
+    <div class="form-sec"><%= t('section_identity') %></div>
+    <div class="form-grid">
+      <% if (typeof companies !== 'undefined' && companies) { %>
+      <div class="field full"><%= t('company_label') %>
+        <select name="companyId" required>
+          <% companies.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <% } %>
+      <div class="field full"><%= t('date') %>
+        <input type="date" name="tanggal" required value="<%= row && row.tanggal ? row.tanggal : '' %>" />
+        <div class="help"><%= t('holiday_date_help') %></div>
+      </div>
+      <div class="field full"><%= t('name') %>
+        <input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><%= t('save') %></button>
+      <a class="btn" href="/ui/holidays"><%= t('cancel') %></a>
+    </div>
+  </form>
+</div>
+<%- include('partials/footer') %>

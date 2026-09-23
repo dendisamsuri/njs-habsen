@@ -385,8 +385,8 @@
   const _canAdmin = typeof user !== 'undefined' && user && user.role !== 'SUPERVISOR';
   const _groups = [
     { label: 'MENU', hrefs: ['/ui/dashboard', '/ui/reports', '/ui/process-logs'] },
-    { label: 'KELOLA', hrefs: ['/ui/approvals', '/ui/leaves', '/ui/leave-types', '/ui/holidays'] },
-    { label: 'MASTERDATA', drop: true, hrefs: ['/ui/employees', '/ui/leave-entitlements', '/ui/locations', '/ui/schedules', '/ui/positions', '/ui/companies'] },
+    { label: 'KELOLA', hrefs: ['/ui/approvals', '/ui/leaves'] },
+    { label: 'MASTERDATA', drop: true, hrefs: ['/ui/employees', '/ui/leave-entitlements', '/ui/leave-types', '/ui/holidays', '/ui/locations', '/ui/schedules', '/ui/positions', '/ui/companies'] },
     { label: 'SISTEM', hrefs: ['/ui/notifications', '/ui/settings'] },
   ];
   const _byHref = {};

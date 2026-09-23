@@ -62,6 +62,7 @@ async function main() {
       companyId: company.id,
       code: 'HQ',
       name: 'Kantor Pusat',
+      address: 'Jl. Contoh Alamat No. 1, Jakarta',
       latitude: -6.2,
       longitude: 106.8166667,
       radiusMeters: 100,
@@ -135,6 +136,22 @@ async function main() {
   });
 
   const year = new Date().getFullYear();
+  const holidays = [
+    { tanggal: `${year}-01-01`, name: 'Tahun Baru' },
+    { tanggal: `${year}-05-01`, name: 'Hari Buruh' },
+    { tanggal: `${year}-06-01`, name: 'Hari Lahir Pancasila' },
+    { tanggal: `${year}-08-17`, name: 'Proklamasi Kemerdekaan' },
+    { tanggal: `${year}-12-25`, name: 'Natal' },
+  ];
+  for (const h of holidays) {
+    const date = new Date(`${h.tanggal}T00:00:00.000Z`);
+    await prisma.holiday.upsert({
+      where: { companyId_date: { companyId: company.id, date } },
+      update: {},
+      create: { companyId: company.id, date, name: h.name },
+    });
+  }
+
   const cutiTahunan = await prisma.leaveType.findUniqueOrThrow({
     where: { companyId_code: { companyId: company.id, code: 'CUTI_TAHUNAN' } },
   });
@@ -158,7 +175,7 @@ async function main() {
     },
   });
 
-  console.log('Seed done', { admin: 'admin@demo.test', emp: 'employee@demo.test', company: company.code });
+  console.log('Seed done', { platform: 'platform@demo.test', admin: 'admin@demo.test', sup: 'supervisor@demo.test', emp: 'employee@demo.test', company: company.code });
 }
 
 main()

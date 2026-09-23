@@ -21,6 +21,7 @@ import { err } from '../common/exceptions';
 const COOKIE = 'absensi_token';
 const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,29}$/;
 const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCHEDULE_DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
 const WORKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 const NAV = [
@@ -90,6 +91,14 @@ function tr(key: string, locale: string): string {
     time_in: { id: 'Jam Masuk', en: 'Time In' },
     time_out: { id: 'Jam Pulang', en: 'Time Out' },
     category: { id: 'Kategori', en: 'Category' },
+    category_help: {
+      id: 'LEAVE = cuti, PERMIT = izin, SICK = sakit. Label enum tidak diterjemahkan.',
+      en: 'LEAVE = leave, PERMIT = permit, SICK = sick. Enum labels are not translated.',
+    },
+    holiday_date_help: {
+      id: 'Satu tanggal hanya boleh sekali per perusahaan.',
+      en: 'One date may be registered only once per company.',
+    },
     deductible: { id: 'Potong Balance', en: 'Deduct Balance' },
     attachment_req: { id: 'Wajib Lampiran', en: 'Attachment Required' },
     checkin: { id: 'Masuk', en: 'Check-in' },
@@ -239,6 +248,9 @@ function tr(key: string, locale: string): string {
     err_time_invalid: { id: 'Jam harus format HH:MM', en: 'Time must be in HH:MM format' },
     err_tolerance_invalid: { id: 'Toleransi harus 0–600 menit', en: 'Tolerance must be 0–600 minutes' },
     err_detail_required: { id: 'Aktifkan minimal satu hari kerja', en: 'Enable at least one working day' },
+    err_date_invalid: { id: 'Tanggal harus YYYY-MM-DD dan valid', en: 'Date must be a valid YYYY-MM-DD date' },
+    err_date_exists: { id: 'Tanggal sudah terdaftar sebagai hari libur', en: 'Date is already registered as a holiday' },
+    err_category_invalid: { id: 'Kategori tipe cuti tidak valid', en: 'Invalid leave category' },
     err_save_failed: { id: 'Data tidak berhasil disimpan', en: 'Failed to save record' },
   };
   const entry = map[key];
@@ -1341,6 +1353,9 @@ export class ViewController {
       err_time_invalid: 'err_time_invalid',
       err_tolerance_invalid: 'err_tolerance_invalid',
       err_detail_required: 'err_detail_required',
+      err_date_invalid: 'err_date_invalid',
+      err_date_exists: 'err_date_exists',
+      err_category_invalid: 'err_category_invalid',
     };
     return tr(map[code] ?? 'err_save_failed', locale);
   }
@@ -1803,6 +1818,39 @@ export class ViewController {
     return res.redirect('/ui/schedules');
   }
 
+  // leave types admin UI — API CRUD lives in masterdata.controller
+
+  private async renderLeaveTypeForm(
+    res: Response,
+    user: any,
+    locale: string,
+    row: any,
+    error: string | null = null,
+    status = 200,
+  ) {
+    return res.status(status).render('leave-type-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: error ? this.mdFormError(error, locale) : null,
+      row,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: row?.companyId ?? user.companyId,
+      page: 'leave-types',
+    });
+  }
+
+  private parseLeaveTypeForm(body: any) {
+    const base = this.parseCodeNameForm(body);
+    const category = String(body?.category ?? 'LEAVE');
+    if (!['LEAVE', 'PERMIT', 'SICK'].includes(category)) throw new Error('err_category_invalid');
+    return {
+      ...base,
+      category,
+      isDeductible: body?.is_deductible !== 'N',
+      requiresAttachment: body?.requires_attachment === 'Y',
+    };
+  }
+
   @Get('leave-types')
   async leaveTypesPage(@Req() req: Request, @Res() res: Response) {
     const user = await this.requireUser(req, res);
@@ -1816,6 +1864,8 @@ export class ViewController {
     return res.render('leave-types', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? this.mdFormError(String(req.query.error), locale) : null,
+      canEdit: user.role !== 'SUPERVISOR',
       rows: rows.map((l) => ({
         id: l.id,
         code: l.code,
@@ -1828,6 +1878,181 @@ export class ViewController {
       })),
       page: 'leave-types',
     });
+  }
+
+  @Get('leave-types/new')
+  async leaveTypeNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    return this.renderLeaveTypeForm(res, user, this.locale(req), null);
+  }
+
+  @Get('leave-types/:id/edit')
+  async leaveTypeEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!row) return res.redirect('/ui/leave-types');
+    return this.renderLeaveTypeForm(res, user, this.locale(req), {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      category: row.category,
+      is_deductible: row.isDeductible ? 'Y' : 'N',
+      requires_attachment: row.requiresAttachment ? 'Y' : 'N',
+      status: row.isActive ? 'Y' : 'N',
+      companyId: row.companyId,
+    });
+  }
+
+  @Post('leave-types')
+  @HttpCode(302)
+  async leaveTypeCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    const keepOf = (src: any) => ({
+      id: null,
+      code: src?.code ?? '',
+      name: src?.name ?? '',
+      category: src?.category ?? 'LEAVE',
+      is_deductible: src?.is_deductible ?? 'Y',
+      requires_attachment: src?.requires_attachment ?? 'N',
+      status: src?.status ?? 'Y',
+      companyId: user.companyId,
+    });
+    let v: ReturnType<ViewController['parseLeaveTypeForm']>;
+    try {
+      v = this.parseLeaveTypeForm(body);
+    } catch (e: any) {
+      return this.renderLeaveTypeForm(res, user, this.locale(req), keepOf(body), e?.message, 400);
+    }
+    const companyId = await this.mdCompanyId(user, body);
+    if (companyId == null) {
+      return this.renderLeaveTypeForm(res, user, this.locale(req), keepOf(body), 'err_company_required', 400);
+    }
+    const dup = await this.prisma.leaveType.findFirst({ where: { companyId, code: v.code } });
+    if (dup) return this.renderLeaveTypeForm(res, user, this.locale(req), keepOf(body), 'err_name_exists', 400);
+    await this.prisma.leaveType.create({
+      data: {
+        companyId,
+        code: v.code,
+        name: v.name,
+        category: v.category as any,
+        isDeductible: v.isDeductible,
+        requiresAttachment: v.requiresAttachment,
+        isActive: v.isActive,
+      },
+    });
+    return res.redirect('/ui/leave-types');
+  }
+
+  @Post('leave-types/:id')
+  @HttpCode(302)
+  async leaveTypeUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!existing) return res.redirect('/ui/leave-types');
+    const keepOf = (src: any) => ({
+      id,
+      code: src?.code ?? '',
+      name: src?.name ?? '',
+      category: src?.category ?? 'LEAVE',
+      is_deductible: src?.is_deductible ?? 'Y',
+      requires_attachment: src?.requires_attachment ?? 'N',
+      status: src?.status ?? 'Y',
+      companyId: existing.companyId,
+    });
+    let v: ReturnType<ViewController['parseLeaveTypeForm']>;
+    try {
+      v = this.parseLeaveTypeForm(body);
+    } catch (e: any) {
+      return this.renderLeaveTypeForm(res, user, this.locale(req), keepOf(body), e?.message, 400);
+    }
+    const dup = await this.prisma.leaveType.findFirst({
+      where: { companyId: existing.companyId, code: v.code, NOT: { id } },
+    });
+    if (dup) return this.renderLeaveTypeForm(res, user, this.locale(req), keepOf(body), 'err_name_exists', 400);
+    await this.prisma.leaveType.update({
+      where: { id },
+      data: {
+        code: v.code,
+        name: v.name,
+        category: v.category as any,
+        isDeductible: v.isDeductible,
+        requiresAttachment: v.requiresAttachment,
+        isActive: v.isActive,
+      },
+    });
+    return res.redirect('/ui/leave-types');
+  }
+
+  @Post('leave-types/:id/toggle')
+  @HttpCode(302)
+  async leaveTypeToggle(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) await this.prisma.leaveType.update({ where: { id }, data: { isActive: !row.isActive } });
+    return res.redirect('/ui/leave-types');
+  }
+
+  @Post('leave-types/:id/delete')
+  @HttpCode(302)
+  async leaveTypeDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/leave-types')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) {
+      const used =
+        (await this.prisma.leaveRequest.count({ where: { leaveTypeId: id } })) +
+        (await this.prisma.leaveBalance.count({ where: { leaveTypeId: id } }));
+      if (used > 0) return res.redirect('/ui/leave-types?error=err_in_use');
+      await this.prisma.leaveType.delete({ where: { id } });
+    }
+    return res.redirect('/ui/leave-types');
+  }
+
+  // holidays admin UI
+
+  private async renderHolidayForm(
+    res: Response,
+    user: any,
+    locale: string,
+    row: any,
+    error: string | null = null,
+    status = 200,
+  ) {
+    return res.status(status).render('holiday-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: error ? this.mdFormError(error, locale) : null,
+      row,
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId: row?.companyId ?? user.companyId,
+      page: 'holidays',
+    });
+  }
+
+  private parseHolidayForm(body: any) {
+    const tanggal = String(body?.tanggal ?? '').trim();
+    const name = String(body?.name ?? '').trim();
+    if (!name) throw new Error('err_name_required');
+    if (name.length > 160) throw new Error('err_name_too_long');
+    if (!DATE_RE.test(tanggal)) throw new Error('err_date_invalid');
+    const d = new Date(`${tanggal}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== tanggal) throw new Error('err_date_invalid');
+    return { tanggal, name };
   }
 
   @Get('holidays')
@@ -1843,6 +2068,8 @@ export class ViewController {
     return res.render('holidays', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: (req.query.error as string) ? this.mdFormError(String(req.query.error), locale) : null,
+      canEdit: user.role !== 'SUPERVISOR',
       rows: rows.map((h) => ({
         id: h.id,
         tanggal: h.date.toISOString().slice(0, 10),
@@ -1851,6 +2078,102 @@ export class ViewController {
       })),
       page: 'holidays',
     });
+  }
+
+  @Get('holidays/new')
+  async holidayNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/holidays')) return res as any;
+    return this.renderHolidayForm(res, user, this.locale(req), null);
+  }
+
+  @Get('holidays/:id/edit')
+  async holidayEditPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/holidays')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.holiday.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!row) return res.redirect('/ui/holidays');
+    return this.renderHolidayForm(res, user, this.locale(req), {
+      id: row.id,
+      tanggal: row.date.toISOString().slice(0, 10),
+      name: row.name,
+      companyId: row.companyId,
+    });
+  }
+
+  @Post('holidays')
+  @HttpCode(302)
+  async holidayCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/holidays')) return res as any;
+    const keepOf = (src: any) => ({
+      id: null,
+      tanggal: src?.tanggal ?? '',
+      name: src?.name ?? '',
+      companyId: user.companyId,
+    });
+    let v: ReturnType<ViewController['parseHolidayForm']>;
+    try {
+      v = this.parseHolidayForm(body);
+    } catch (e: any) {
+      return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), e?.message, 400);
+    }
+    const companyId = await this.mdCompanyId(user, body);
+    if (companyId == null) {
+      return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), 'err_company_required', 400);
+    }
+    const dup = await this.prisma.holiday.findFirst({ where: { companyId, date: new Date(`${v.tanggal}T00:00:00.000Z`) } });
+    if (dup) return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), 'err_date_exists', 400);
+    await this.prisma.holiday.create({
+      data: { companyId, date: new Date(`${v.tanggal}T00:00:00.000Z`), name: v.name },
+    });
+    return res.redirect('/ui/holidays');
+  }
+
+  @Post('holidays/:id')
+  @HttpCode(302)
+  async holidayUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/holidays')) return res as any;
+    const id = Number((req.params as any).id);
+    const existing = await this.prisma.holiday.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (!existing) return res.redirect('/ui/holidays');
+    const keepOf = (src: any) => ({
+      id,
+      tanggal: src?.tanggal ?? '',
+      name: src?.name ?? '',
+      companyId: existing.companyId,
+    });
+    let v: ReturnType<ViewController['parseHolidayForm']>;
+    try {
+      v = this.parseHolidayForm(body);
+    } catch (e: any) {
+      return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), e?.message, 400);
+    }
+    const date = new Date(`${v.tanggal}T00:00:00.000Z`);
+    const dup = await this.prisma.holiday.findFirst({
+      where: { companyId: existing.companyId, date, NOT: { id } },
+    });
+    if (dup) return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), 'err_date_exists', 400);
+    await this.prisma.holiday.update({ where: { id }, data: { date, name: v.name } });
+    return res.redirect('/ui/holidays');
+  }
+
+  @Post('holidays/:id/delete')
+  @HttpCode(302)
+  async holidayDelete(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireMdEdit(user, res, '/ui/holidays')) return res as any;
+    const id = Number((req.params as any).id);
+    const row = await this.prisma.holiday.findFirst({ where: this.tenantWhere(user, { id }) });
+    if (row) await this.prisma.holiday.delete({ where: { id } });
+    return res.redirect('/ui/holidays');
   }
 
   @Get('notifications')
