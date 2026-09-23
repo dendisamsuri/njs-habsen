@@ -1,7 +1,9 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Injectable, Param, ParseIntPipe, Post, Query, Req } from '@nestjs/common';
 import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { TenantPrismaService } from '../prisma/prisma.module';
+import { RequestContextService } from '../common/request-context';
 import { err } from '../common/exceptions';
+import { t } from '../i18n/messages';
 
 class CreateNotificationDto {
   @IsString() @IsNotEmpty() title!: string;
@@ -12,7 +14,10 @@ class CreateNotificationDto {
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly rcs: RequestContextService,
+  ) {}
 
   private c() {
     return (this.prisma as any).scoped();
@@ -48,16 +53,18 @@ export class NotificationsController {
       offset: off,
       total,
       unread_count: unread,
-      records: rows.map((n: any) => this.toRecord(n)),
+      records: rows.map((n: any) => this.toRecord(n, this.rcs.locale)),
     };
   }
 
-  toRecord(n: any) {
+  toRecord(n: any, locale: 'id' | 'en' = 'id') {
+    const title = n.titleKey ? t(n.titleKey, locale, n.bodyParams ?? undefined) : n.title;
+    const body = n.bodyKey ? t(n.bodyKey, locale, n.bodyParams ?? undefined) : n.body;
     return {
       id: n.id,
-      title: n.title,
-      message: n.body,
-      body: n.body,
+      title,
+      message: body,
+      body,
       category: n.category,
       link: n.link,
       url: n.link,
@@ -68,7 +75,7 @@ export class NotificationsController {
       actor_name: null,
       status: n.isRead ? 'Y' : 'N',
       notifikasi_id: n.id,
-      keterangan: n.body,
+      keterangan: body,
     };
   }
 
@@ -97,6 +104,7 @@ export class NotificationsController {
 }
 
 /** Internal helper used by approval/leave services (not a controller route). */
+@Injectable()
 export class NotificationWriter {
   constructor(private readonly prisma: TenantPrismaService) {}
 
@@ -109,8 +117,9 @@ export class NotificationWriter {
     userId: number;
     category: string;
     eventKey: string;
-    title: string;
-    body?: string;
+    titleKey: string;
+    bodyKey?: string;
+    params?: Record<string, string | number>;
     link?: string;
   }) {
     try {
@@ -123,13 +132,16 @@ export class NotificationWriter {
           recipientId: payload.userId,
           category: payload.category as any,
           eventKey: payload.eventKey,
-          title: payload.title,
-          body: payload.body ?? null,
+          title: payload.titleKey,
+          titleKey: payload.titleKey,
+          bodyKey: payload.bodyKey ?? null,
+          bodyParams: payload.params ? JSON.parse(JSON.stringify(payload.params)) : undefined,
           link: payload.link ?? null,
         },
       });
-    } catch {
+    } catch (e) {
       // notifications never break main flow
+      console.error('notification write failed', e);
     }
   }
 
@@ -138,8 +150,9 @@ export class NotificationWriter {
     roles: string[];
     category: string;
     eventKeyBase: string;
-    title: string;
-    body?: string;
+    titleKey: string;
+    bodyKey?: string;
+    params?: Record<string, string | number>;
     link?: string;
   }) {
     for (const role of payload.roles) {
@@ -154,13 +167,15 @@ export class NotificationWriter {
             role,
             category: payload.category as any,
             eventKey,
-            title: payload.title,
-            body: payload.body ?? null,
+            title: payload.titleKey,
+            titleKey: payload.titleKey,
+            bodyKey: payload.bodyKey ?? null,
+            bodyParams: payload.params ? JSON.parse(JSON.stringify(payload.params)) : undefined,
             link: payload.link ?? null,
           },
         });
-      } catch {
-        // swallow
+      } catch (e) {
+        console.error('notification write failed', e);
       }
     }
   }
@@ -170,8 +185,9 @@ export class NotificationWriter {
     userId: number;
     category: string;
     eventKey: string;
-    title: string;
-    body?: string;
+    titleKey: string;
+    bodyKey?: string;
+    params?: Record<string, string | number>;
     link?: string;
   }) {
     try {
@@ -179,8 +195,8 @@ export class NotificationWriter {
       if (user?.directLeadId) {
         await this.notifyUser({ ...payload, userId: user.directLeadId, eventKey: `${payload.eventKey}:lead` });
       }
-    } catch {
-      // swallow
+    } catch (e) {
+      console.error('notification write failed', e);
     }
   }
 }

@@ -11,12 +11,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { Request, Response } from 'express';
-import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/prisma.module';
 import { Public } from '../common/jwt-auth.guard';
 import { ReportsService } from '../reports/reports.service';
 import { ApprovalTransitionService } from '../approvals/approval-transition.service';
-import { resolveLocale } from '../i18n/messages';
+import { resolveLocale, t } from '../i18n/messages';
 import { err } from '../common/exceptions';
+import { assertEmployeeRefs } from '../common/employee-refs';
 
 const COOKIE = 'absensi_token';
 const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,29}$/;
@@ -262,7 +263,7 @@ function tr(key: string, locale: string): string {
 @Controller('ui')
 export class ViewController {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: TenantPrismaService,
     private readonly jwt: JwtService,
     private readonly reports: ReportsService,
     private readonly approvals: ApprovalTransitionService,
@@ -452,11 +453,18 @@ export class ViewController {
     const locale = this.locale(req);
     const rows = await this.prisma.user.findMany({
       where: this.tenantWhere(user, { deletedAt: null, role: { not: 'PLATFORM_ADMIN' } }),
-      include: { position: true, location: true, schedule: true, directLead: { select: { namaLengkap: true } } },
+      include: {
+        position: true,
+        location: true,
+        schedule: true,
+        directLead: { select: { namaLengkap: true } },
+        company: { select: { name: true } },
+      },
       orderBy: { namaLengkap: 'asc' }, take: 200,
     });
     return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
       id: r.id, nama_lengkap: r.namaLengkap, email: r.email, nip: r.nip ?? '-', role: r.role,
+      company: r.company?.name ?? '-',
       posisi: r.position?.name ?? '-', lokasi: r.location?.name ?? '-', jadwal: r.schedule?.name ?? '-',
       lead: r.directLead?.namaLengkap ?? '-', is_active: r.isActive,
     })), page: 'employees' });
@@ -495,13 +503,26 @@ export class ViewController {
   async employeeCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    if (!user.companyId) return res.redirect('/ui/employees?error=FORBIDDEN');
     const email = String(body.email ?? '').trim().toLowerCase();
     const name = String(body.nama_lengkap ?? '').trim();
     const password = String(body.password ?? '');
     if (!email || !name || password.length < 8) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) return res.redirect('/ui/employees?error=DUPLICATE');
-    await this.prisma.user.create({ data: { companyId: user.companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role: body.role || 'EMPLOYEE', positionId: Number(body.position_id) || null, locationId: Number(body.location_id) || null, scheduleId: Number(body.schedule_id) || null, directLeadId: Number(body.direct_lead_id) || null, isActive: body.is_active !== 'N' } });
+    const refs = {
+      position_id: Number(body.position_id) || null,
+      location_id: Number(body.location_id) || null,
+      schedule_id: Number(body.schedule_id) || null,
+      direct_lead_id: Number(body.direct_lead_id) || null,
+    };
+    try {
+      await assertEmployeeRefs(this.prisma, user.companyId, refs);
+    } catch {
+      return res.redirect('/ui/employees?error=VALIDATION_ERROR');
+    }
+    const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
+    await this.prisma.user.create({ data: { companyId: user.companyId, email, namaLengkap: name, nip: body.nip || null, passwordHash: await bcrypt.hash(password, 12), role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' } });
     return res.redirect('/ui/employees');
   }
 
@@ -510,13 +531,26 @@ export class ViewController {
   async employeeUpdate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/employees')) return res as any;
+    if (!user.companyId) return res.redirect('/ui/employees?error=FORBIDDEN');
     const id = Number(req.params.id);
     const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
     if (!row) return res.redirect('/ui/employees');
     const email = String(body.email ?? '').trim().toLowerCase();
     const exists = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
     if (exists) return res.redirect(`/ui/employees/${id}/edit?error=DUPLICATE`);
-    const data: any = { email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role: body.role || 'EMPLOYEE', positionId: Number(body.position_id) || null, locationId: Number(body.location_id) || null, scheduleId: Number(body.schedule_id) || null, directLeadId: Number(body.direct_lead_id) || null, isActive: body.is_active !== 'N' };
+    const refs = {
+      position_id: Number(body.position_id) || null,
+      location_id: Number(body.location_id) || null,
+      schedule_id: Number(body.schedule_id) || null,
+      direct_lead_id: Number(body.direct_lead_id) || null,
+    };
+    try {
+      await assertEmployeeRefs(this.prisma, user.companyId, refs);
+    } catch {
+      return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
+    }
+    const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
+    const data: any = { email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null, role, positionId: refs.position_id, locationId: refs.location_id, scheduleId: refs.schedule_id, directLeadId: refs.direct_lead_id, isActive: body.is_active !== 'N' };
     if (String(body.password ?? '')) data.passwordHash = await bcrypt.hash(String(body.password), 12);
     await this.prisma.user.update({ where: { id }, data });
     return res.redirect('/ui/employees');
@@ -551,11 +585,15 @@ export class ViewController {
     const locale = this.locale(req);
     const year = Number(req.query.year) || new Date().getFullYear();
     const rows = await this.prisma.leaveBalance.findMany({
-      where: this.tenantWhere(user, { year }), include: { user: true, leaveType: true },
+      where: this.tenantWhere(user, { year }),
+      include: {
+        user: { select: { namaLengkap: true, company: { select: { name: true } } } },
+        leaveType: true,
+      },
       orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }], take: 500,
     });
     return res.render('leave-entitlements', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, year, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
-      id: r.id, employee: r.user.namaLengkap, type: r.leaveType.name, year: r.year,
+      id: r.id, employee: r.user.namaLengkap, company: r.user.company?.name ?? '-', type: r.leaveType.name, year: r.year,
       entitlement: Number(r.entitlement), taken: Number(r.taken), remaining: r.remaining == null ? Number(r.entitlement) - Number(r.taken) : Number(r.remaining),
     })), page: 'leave-entitlements' });
   }
@@ -2196,8 +2234,8 @@ export class ViewController {
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       rows: rows.map((n) => ({
         id: n.id,
-        title: n.title,
-        body: n.body ?? '',
+        title: n.titleKey ? t(n.titleKey, locale as any, (n.bodyParams as any) ?? undefined) : n.title,
+        body: n.bodyKey ? t(n.bodyKey, locale as any, (n.bodyParams as any) ?? undefined) : n.body ?? '',
         is_read: n.isRead,
         created_at: n.createdAt.toISOString().slice(0, 16).replace('T', ' '),
       })),

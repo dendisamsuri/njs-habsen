@@ -208,22 +208,21 @@ export class ApprovalTransitionService {
       const cid = (outcome as any).companyId as number;
 
       // post-commit notifications
-      const label =
-        requestType === 'LEAVE' ? 'Cuti' : 'Replacement Off';
       const url = requestType === 'LEAVE' ? 'leaves' : 'replacement-off';
-      const msg =
+      const titleKey = requestType === 'LEAVE' ? 'NOTIF_STATUS_TITLE_LEAVE' : 'NOTIF_STATUS_TITLE_REPLACEMENT';
+      const bodyKey =
         newStatus === 'approved'
-          ? 'disetujui'
+          ? 'NOTIF_STATUS_BODY_APPROVED'
           : newStatus === 'rejected'
-            ? 'ditolak'
-            : 'menunggu persetujuan HR';
+            ? 'NOTIF_STATUS_BODY_REJECTED'
+            : 'NOTIF_STATUS_BODY_WAITING_HR';
       await this.notifications.notifyUser({
         companyId: cid,
         userId,
         category: requestType === 'LEAVE' ? 'LEAVE' : 'REPLACEMENT_OFF',
         eventKey: `${requestType.toLowerCase()}:status:${requestId}:${newStatus}:user:${userId}`,
-        title: `Status ${label} Diperbarui`,
-        body: `Pengajuan Anda ${msg}`,
+        titleKey,
+        bodyKey,
         link: url,
       });
       if (newStatus === 'waiting_hr') {
@@ -232,8 +231,9 @@ export class ApprovalTransitionService {
           roles: ['COMPANY_ADMIN', 'PLATFORM_ADMIN'],
           category: requestType === 'LEAVE' ? 'LEAVE' : 'REPLACEMENT_OFF',
           eventKeyBase: `${requestType.toLowerCase()}:status:${requestId}:${newStatus}`,
-          title: 'Pengajuan Menunggu Persetujuan HR',
-          body: `Pengajuan ${label} menunggu persetujuan HR`,
+          titleKey: 'NOTIF_HR_WAITING_TITLE',
+          bodyKey:
+            requestType === 'LEAVE' ? 'NOTIF_HR_WAITING_BODY_LEAVE' : 'NOTIF_HR_WAITING_BODY_REPLACEMENT',
           link: url,
         });
       }

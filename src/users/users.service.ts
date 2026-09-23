@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
+import { assertEmployeeRefs } from '../common/employee-refs';
 
 export interface CreateUserInput {
   email: string;
@@ -31,9 +32,9 @@ export class UsersService {
     return (this.prisma as any).scoped();
   }
 
-  async list(params: { limit?: number; offset?: number; search?: string; role?: string }) {
+  async list(params: { companyId: number; limit?: number; offset?: number; search?: string; role?: string }) {
     const c = this.client();
-    const where: any = { deletedAt: null };
+    const where: any = { companyId: params.companyId, deletedAt: null };
     if (params.search) {
       where.OR = [
         { namaLengkap: { contains: params.search } },
@@ -98,9 +99,11 @@ export class UsersService {
   async create(companyId: number, input: CreateUserInput) {
     const c = this.client();
     const email = input.email.toLowerCase().trim();
-    const existing = await c.user.findFirst({ where: { email } });
+    // email unique globally — lookup must stay unscoped
+    const existing = await this.prisma.user.findFirst({ where: { email } });
     if (existing) throw err('EMAIL_TAKEN', 409);
     if (!input.password || input.password.length < 8) throw err('INVALID_PASSWORD', 400);
+    await assertEmployeeRefs(c, companyId, input);
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await c.user.create({
       data: {
@@ -128,14 +131,15 @@ export class UsersService {
     return this.toRecord(user);
   }
 
-  async update(id: number, input: Partial<CreateUserInput> & { is_active?: boolean; password?: string }) {
+  async update(companyId: number, id: number, input: Partial<CreateUserInput> & { is_active?: boolean; password?: string }) {
     const c = this.client();
-    const user = await c.user.findFirst({ where: { id, deletedAt: null } });
+    const user = await c.user.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!user) throw err('USER_NOT_FOUND', 404);
     if (input.email && input.email.toLowerCase().trim() !== user.email) {
-      const dup = await c.user.findFirst({ where: { email: input.email.toLowerCase().trim() } });
+      const dup = await this.prisma.user.findFirst({ where: { email: input.email.toLowerCase().trim() } });
       if (dup) throw err('EMAIL_TAKEN', 409);
     }
+    await assertEmployeeRefs(c, companyId, input);
     const data: any = {};
     if (input.email) data.email = input.email.toLowerCase().trim();
     if (input.nama_lengkap) data.namaLengkap = input.nama_lengkap;
@@ -165,11 +169,11 @@ export class UsersService {
     return this.toRecord(updated);
   }
 
-  async remove(id: number) {
+  async remove(companyId: number, id: number) {
     const c = this.client();
-    const user = await c.user.findFirst({ where: { id, deletedAt: null } });
+    const user = await c.user.findFirst({ where: { id, companyId, deletedAt: null } });
     if (!user) throw err('USER_NOT_FOUND', 404);
-    await c.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+    await this.prisma.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
     return true;
   }
 

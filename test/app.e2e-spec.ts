@@ -214,4 +214,117 @@ describe('API e2e (smoke)', () => {
     // assert unique error path mapping stays ALREADY_RECORDED success semantics
     expect(true).toBe(true);
   });
+
+  async function loginAs(email: string): Promise<string> {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email, password: 'Password123!' })
+      .expect(200);
+    return res.body.data.token;
+  }
+
+  itDb('tenant isolation: company A cannot read or mutate company B users', async () => {
+    const tokenA = await loginAs('admin@demo.test');
+    const tokenB = await loginAs('admin2@demo.test');
+
+    const listB = await request(app.getHttpServer())
+      .get('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(200);
+    const bAdmin = listB.body.data.records.find((u: any) => u.email === 'admin2@demo.test');
+    const bEmp = listB.body.data.records.find((u: any) => u.email === 'employee2@demo.test');
+    expect(bAdmin).toBeTruthy();
+    expect(bEmp).toBeTruthy();
+
+    const search = await request(app.getHttpServer())
+      .get('/api/v1/admin/users?search=admin2@demo.test')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    expect(search.body.data.total).toBe(0);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/admin/users/${bAdmin.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(404);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${bAdmin.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ email: 'admin2@demo.test', password: 'Password123!', nama_lengkap: 'Hacked' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/admin/users/${bAdmin.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(404);
+
+    const stillThere = await request(app.getHttpServer())
+      .get(`/api/v1/admin/users/${bAdmin.id}`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(200);
+    expect(stillThere.body.data.nama_lengkap).toBe('Company Admin Dua');
+  });
+
+  itDb('tenant isolation: leave entitlements scoped to own company', async () => {
+    const tokenA = await loginAs('admin@demo.test');
+    const tokenB = await loginAs('admin2@demo.test');
+
+    const listB = await request(app.getHttpServer())
+      .get('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(200);
+    const bEmp = listB.body.data.records.find((u: any) => u.email === 'employee2@demo.test');
+    expect(bEmp).toBeTruthy();
+
+    const typesA = await request(app.getHttpServer())
+      .get('/api/v1/admin/leave-types')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    const typeA = typesA.body.data[0];
+    expect(typeA).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/leave-entitlements')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ user_id: bEmp.id, leave_type_id: typeA.id, year: 2026, entitlement: 5 })
+      .expect(400);
+
+    const cross = await request(app.getHttpServer())
+      .get(`/api/v1/admin/leave-entitlements?user_id=${bEmp.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    expect(cross.body.data).toHaveLength(0);
+
+    const ownB = await request(app.getHttpServer())
+      .get(`/api/v1/admin/leave-entitlements?user_id=${bEmp.id}`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(200);
+    expect(ownB.body.data.length).toBeGreaterThan(0);
+
+    const ownA = await request(app.getHttpServer())
+      .get('/api/v1/admin/leave-entitlements')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    const companyIdsA = new Set(ownA.body.data.map((r: any) => r.companyId));
+    expect(companyIdsA.size).toBeGreaterThan(0);
+    expect(ownB.body.data.every((r: any) => !companyIdsA.has(r.companyId))).toBe(true);
+  });
+
+  itDb('leave entitlement: year out of bounds rejected (400)', async () => {
+    const tokenA = await loginAs('admin@demo.test');
+    const listA = await request(app.getHttpServer())
+      .get('/api/v1/admin/users?search=employee@demo.test')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    const aEmp = listA.body.data.records.find((u: any) => u.email === 'employee@demo.test');
+    const typesA = await request(app.getHttpServer())
+      .get('/api/v1/admin/leave-types')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/admin/leave-entitlements')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ user_id: aEmp.id, leave_type_id: typesA.body.data[0].id, year: 9999, entitlement: 5 })
+      .expect(400);
+    expect(res.body.error_code).toBe('VALIDATION_ERROR');
+  });
 });

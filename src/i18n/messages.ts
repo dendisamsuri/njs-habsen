@@ -110,12 +110,33 @@ export const MESSAGES: Record<string, Record<Locale, string>> = {
   INVALID_ENUM: { id: 'Nilai tidak valid', en: 'Invalid value' },
   INVALID_DATE_FORMAT: { id: 'Format tanggal harus YYYY-MM-DD', en: 'Date format must be YYYY-MM-DD' },
   JSON_INVALID: { id: 'Format JSON tidak valid', en: 'Invalid JSON format' },
+
+  // notifications (title/body stored as keys + params, rendered at read)
+  NOTIF_LEAVE_SUBMITTED_TITLE: { id: 'Pengajuan Cuti Baru', en: 'New Leave Request' },
+  NOTIF_LEAVE_SUBMITTED_LEAD_BODY: { id: '{name} baru saja mengajukan cuti', en: '{name} just submitted a leave request' },
+  NOTIF_LEAVE_SUBMITTED_ROLE_BODY: { id: '{name} mengajukan cuti', en: '{name} submitted a leave request' },
+  NOTIF_REPLACEMENT_SUBMITTED_TITLE: { id: 'Pengajuan Replacement Off Baru', en: 'New Replacement Off Request' },
+  NOTIF_REPLACEMENT_SUBMITTED_BODY: { id: '{name} mengajukan replacement off', en: '{name} submitted a replacement off' },
+  NOTIF_STATUS_TITLE_LEAVE: { id: 'Status Cuti Diperbarui', en: 'Leave Status Updated' },
+  NOTIF_STATUS_TITLE_REPLACEMENT: { id: 'Status Replacement Off Diperbarui', en: 'Replacement Off Status Updated' },
+  NOTIF_STATUS_BODY_APPROVED: { id: 'Pengajuan Anda disetujui', en: 'Your request has been approved' },
+  NOTIF_STATUS_BODY_REJECTED: { id: 'Pengajuan Anda ditolak', en: 'Your request has been rejected' },
+  NOTIF_STATUS_BODY_WAITING_HR: { id: 'Pengajuan Anda menunggu persetujuan HR', en: 'Your request is awaiting HR approval' },
+  NOTIF_HR_WAITING_TITLE: { id: 'Pengajuan Menunggu Persetujuan HR', en: 'Request Awaiting HR Approval' },
+  NOTIF_HR_WAITING_BODY_LEAVE: { id: 'Pengajuan Cuti menunggu persetujuan HR', en: 'Leave request awaiting HR approval' },
+  NOTIF_HR_WAITING_BODY_REPLACEMENT: { id: 'Pengajuan Replacement Off menunggu persetujuan HR', en: 'Replacement Off request awaiting HR approval' },
 };
 
-export function t(code: string, locale: Locale = 'id'): string {
+export function t(code: string, locale: Locale = 'id', params?: Record<string, string | number>): string {
   const entry = MESSAGES[code];
   if (!entry) return code;
-  return entry[locale] ?? entry.id ?? code;
+  let msg = entry[locale] ?? entry.id ?? code;
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      msg = msg.split(`{${key}}`).join(String(value));
+    }
+  }
+  return msg;
 }
 
 export function resolveLocale(header?: string, userPref?: string | null): Locale {

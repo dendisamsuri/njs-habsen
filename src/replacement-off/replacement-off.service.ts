@@ -194,8 +194,9 @@ export class ReplacementOffService {
       userId: user.id,
       category: 'REPLACEMENT_OFF',
       eventKey: `replacement_off:submitted:${id}`,
-      title: 'Pengajuan Replacement Off Baru',
-      body: `${user.namaLengkap} mengajukan replacement off`,
+      titleKey: 'NOTIF_REPLACEMENT_SUBMITTED_TITLE',
+      bodyKey: 'NOTIF_REPLACEMENT_SUBMITTED_BODY',
+      params: { name: user.namaLengkap },
       link: 'replacement-off',
     });
 

@@ -11,6 +11,7 @@ export class PrismaService extends PrismaClient {
 }
 
 const TENANT_MODELS = new Set<string>([
+  'user',
   'position',
   'location',
   'holiday',

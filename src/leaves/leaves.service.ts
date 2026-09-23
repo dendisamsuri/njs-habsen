@@ -310,8 +310,9 @@ export class LeavesService {
         userId: user.id,
         category: 'LEAVE',
         eventKey: `leave:submitted:${row.id}`,
-        title: 'Pengajuan Cuti Baru',
-        body: `${user.namaLengkap} baru saja mengajukan cuti`,
+        titleKey: 'NOTIF_LEAVE_SUBMITTED_TITLE',
+        bodyKey: 'NOTIF_LEAVE_SUBMITTED_LEAD_BODY',
+        params: { name: user.namaLengkap },
         link: 'leaves',
       });
       await this.notifications.notifyRoles({
@@ -319,8 +320,9 @@ export class LeavesService {
         roles: ['COMPANY_ADMIN', 'PLATFORM_ADMIN'],
         category: 'LEAVE',
         eventKeyBase: `leave:submitted:${row.id}`,
-        title: 'Pengajuan Cuti Baru',
-        body: `${user.namaLengkap} mengajukan cuti`,
+        titleKey: 'NOTIF_LEAVE_SUBMITTED_TITLE',
+        bodyKey: 'NOTIF_LEAVE_SUBMITTED_ROLE_BODY',
+        params: { name: user.namaLengkap },
         link: 'leaves',
       });
       return this.toRecord(row);

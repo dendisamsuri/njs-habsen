@@ -10,10 +10,11 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, MaxLength, IsIn } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, Max, MaxLength, IsIn } from 'class-validator';
 import { Roles } from '../common/roles.guard';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
+import { assertEmployeeRefs } from '../common/employee-refs';
 import * as bcrypt from 'bcryptjs';
 
 const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
@@ -91,9 +92,38 @@ class EmployeeDto {
 class LeaveEntitlementDto {
   @IsInt() user_id!: number;
   @IsInt() leave_type_id!: number;
-  @IsInt() year!: number;
-  @IsOptional() entitlement?: number;
+  @IsInt() @Min(2000) @Max(2100) year!: number;
+  @IsOptional() @Min(0) @Max(999.99) entitlement?: number;
 }
+
+const USER_SELECT = {
+  id: true,
+  companyId: true,
+  email: true,
+  namaLengkap: true,
+  nip: true,
+  role: true,
+  directLeadId: true,
+  positionId: true,
+  locationId: true,
+  scheduleId: true,
+  phone: true,
+  avatarUrl: true,
+  isActive: true,
+  langPref: true,
+  faceRegistered: true,
+  isFlexibleLocation: true,
+  allowReplacementOff: true,
+  allowScheduleSelection: true,
+  allowMultipleCheckout: true,
+  allowHalfDay: true,
+  allowJointLeave: true,
+  mustChangePassword: true,
+  lastLoginAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} as const;
 
 @Roles('PLATFORM_ADMIN', 'COMPANY_ADMIN')
 @Controller('admin')
@@ -115,7 +145,13 @@ export class MasterdataController {
     if (q) where.OR = [{ namaLengkap: { contains: q } }, { email: { contains: q } }, { nip: { contains: q } }];
     return this.c().user.findMany({
       where,
-      include: { position: true, location: true, schedule: true, directLead: { select: { id: true, namaLengkap: true } } },
+      select: {
+        ...USER_SELECT,
+        position: true,
+        location: true,
+        schedule: true,
+        directLead: { select: { id: true, namaLengkap: true } },
+      },
       orderBy: { namaLengkap: 'asc' },
     });
   }
@@ -124,13 +160,26 @@ export class MasterdataController {
   async createEmployee(@Req() req: any, @Body() dto: EmployeeDto) {
     const companyId = this.cid(req);
     if (!dto.password) throw err('VALIDATION_ERROR', 400);
+    const email = dto.email.toLowerCase().trim();
+    // email unique globally — lookup must stay unscoped
+    const existing = await this.prisma.user.findFirst({ where: { email } });
+    if (existing) throw err('EMAIL_TAKEN', 409);
+    await assertEmployeeRefs(this.c(), companyId, dto);
     return this.c().user.create({
       data: {
-        companyId, email: dto.email.toLowerCase().trim(), namaLengkap: dto.nama_lengkap.trim(), nip: dto.nip,
-        passwordHash: await bcrypt.hash(dto.password, 12), role: dto.role ?? 'EMPLOYEE',
-        positionId: dto.position_id, locationId: dto.location_id, scheduleId: dto.schedule_id,
-        directLeadId: dto.direct_lead_id, isActive: dto.is_active ?? true,
+        companyId,
+        email,
+        namaLengkap: dto.nama_lengkap.trim(),
+        nip: dto.nip,
+        passwordHash: await bcrypt.hash(dto.password, 12),
+        role: dto.role ?? 'EMPLOYEE',
+        positionId: dto.position_id,
+        locationId: dto.location_id,
+        scheduleId: dto.schedule_id,
+        directLeadId: dto.direct_lead_id,
+        isActive: dto.is_active ?? true,
       },
+      select: USER_SELECT,
     });
   }
 
@@ -138,6 +187,12 @@ export class MasterdataController {
   async updateEmployee(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: Partial<EmployeeDto>) {
     const row = await this.c().user.findFirst({ where: { id, companyId: this.cid(req), deletedAt: null } });
     if (!row) throw err('USER_NOT_FOUND', 404);
+    if (dto.email !== undefined) {
+      const email = dto.email.toLowerCase().trim();
+      const dup = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
+      if (dup) throw err('EMAIL_TAKEN', 409);
+    }
+    await assertEmployeeRefs(this.c(), this.cid(req), dto);
     const data: any = {};
     if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
     if (dto.nama_lengkap !== undefined) data.namaLengkap = dto.nama_lengkap.trim();
@@ -149,14 +204,18 @@ export class MasterdataController {
     if (dto.schedule_id !== undefined) data.scheduleId = dto.schedule_id;
     if (dto.direct_lead_id !== undefined) data.directLeadId = dto.direct_lead_id;
     if (dto.is_active !== undefined) data.isActive = dto.is_active;
-    return this.c().user.update({ where: { id }, data });
+    return this.c().user.update({ where: { id }, data, select: USER_SELECT });
   }
 
   @Get('leave-entitlements')
   async leaveEntitlements(@Req() req: any, @Query('year') year?: string, @Query('user_id') userId?: string) {
     const where: any = { companyId: this.cid(req), year: Number(year) || new Date().getFullYear() };
     if (userId) where.userId = Number(userId);
-    return this.c().leaveBalance.findMany({ where, include: { user: true, leaveType: true }, orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }] });
+    return this.c().leaveBalance.findMany({
+      where,
+      include: { user: { select: USER_SELECT }, leaveType: true },
+      orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }],
+    });
   }
 
   @Post('leave-entitlements')

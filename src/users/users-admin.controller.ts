@@ -10,21 +10,23 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { Roles } from '../common/roles.guard';
 import { UsersService } from './users.service';
 import { err } from '../common/exceptions';
+
+const COMPANY_ROLES = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'] as const;
 
 class CreateUserDto {
   @IsEmail() email!: string;
   @IsString() @MinLength(8) password!: string;
   @IsString() nama_lengkap!: string;
   @IsOptional() nip?: string;
-  @IsOptional() role?: string;
-  @IsOptional() direct_lead_id?: number;
-  @IsOptional() position_id?: number;
-  @IsOptional() location_id?: number;
-  @IsOptional() schedule_id?: number;
+  @IsOptional() @IsIn(COMPANY_ROLES) role?: string;
+  @IsOptional() @IsInt() @Min(1) direct_lead_id?: number;
+  @IsOptional() @IsInt() @Min(1) position_id?: number;
+  @IsOptional() @IsInt() @Min(1) location_id?: number;
+  @IsOptional() @IsInt() @Min(1) schedule_id?: number;
   @IsOptional() phone?: string;
   @IsOptional() is_flexible_location?: boolean;
   @IsOptional() allow_replacement_off?: boolean;
@@ -55,8 +57,9 @@ export class UsersAdminController {
     @Query('search') search?: string,
     @Query('role') role?: string,
   ) {
-    this.companyId(req);
+    const cid = this.companyId(req);
     return this.users.list({
+      companyId: cid,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
       search,
@@ -72,10 +75,10 @@ export class UsersAdminController {
 
   @Get(':id')
   async get(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    this.companyId(req);
+    const cid = this.companyId(req);
     const c = (this.users as any).client();
-    const u = await c.user.findFirst({ where: { id, deletedAt: null } });
-    if (!u || u.companyId !== req.user.companyId) throw err('USER_NOT_FOUND', 404);
+    const u = await c.user.findFirst({ where: { id, companyId: cid, deletedAt: null } });
+    if (!u) throw err('USER_NOT_FOUND', 404);
     return this.users.toRecord(u);
   }
 
@@ -88,13 +91,13 @@ export class UsersAdminController {
 
   @Patch(':id')
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: CreateUserDto) {
-    this.companyId(req);
-    return this.users.update(id, { ...(dto as any), password: (dto as any).password_change });
+    const cid = this.companyId(req);
+    return this.users.update(cid, id, { ...(dto as any), password: (dto as any).password_change });
   }
 
   @Delete(':id')
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    this.companyId(req);
-    return this.users.remove(id);
+    const cid = this.companyId(req);
+    return this.users.remove(cid, id);
   }
 }

@@ -183,6 +183,82 @@ async function main() {
     },
   });
 
+  const companyB = await prisma.company.upsert({
+    where: { code: 'TWO' },
+    update: {},
+    create: {
+      code: 'TWO',
+      name: 'PT Tenant Dua',
+      status: 'ACTIVE',
+      settings: { timezone: 'Asia/Jakarta' },
+    },
+  });
+
+  await prisma.companySetting.upsert({
+    where: { companyId: companyB.id },
+    update: {},
+    create: { companyId: companyB.id, timezone: 'Asia/Jakarta', tipeAbsen: 'selfie' },
+  });
+
+  const adminB = await prisma.user.upsert({
+    where: { email: 'admin2@demo.test' },
+    update: {},
+    create: {
+      email: 'admin2@demo.test',
+      passwordHash: password,
+      namaLengkap: 'Company Admin Dua',
+      role: 'COMPANY_ADMIN',
+      companyId: companyB.id,
+      langPref: 'id',
+    },
+  });
+
+  const empB = await prisma.user.upsert({
+    where: { email: 'employee2@demo.test' },
+    update: {},
+    create: {
+      email: 'employee2@demo.test',
+      passwordHash: password,
+      namaLengkap: 'Karyawan Dua',
+      role: 'EMPLOYEE',
+      companyId: companyB.id,
+      langPref: 'id',
+    },
+  });
+
+  const cutiB = await prisma.leaveType.upsert({
+    where: { companyId_code: { companyId: companyB.id, code: 'CUTI_TAHUNAN' } },
+    update: {},
+    create: {
+      companyId: companyB.id,
+      code: 'CUTI_TAHUNAN',
+      name: 'Cuti Tahunan',
+      category: 'LEAVE',
+      isDeductible: true,
+      requiresAttachment: false,
+    },
+  });
+
+  await prisma.leaveBalance.upsert({
+    where: {
+      companyId_userId_leaveTypeId_year: {
+        companyId: companyB.id,
+        userId: empB.id,
+        leaveTypeId: cutiB.id,
+        year,
+      },
+    },
+    update: {},
+    create: {
+      companyId: companyB.id,
+      userId: empB.id,
+      leaveTypeId: cutiB.id,
+      year,
+      entitlement: 10,
+      taken: 0,
+    },
+  });
+
   // eslint-disable-next-line no-console
   console.log('Seed done', {
     platform: platform.email,
@@ -190,6 +266,9 @@ async function main() {
     sup: sup.email,
     emp: emp.email,
     company: company.code,
+    adminB: adminB.email,
+    empB: empB.email,
+    companyB: companyB.code,
   });
 }
 

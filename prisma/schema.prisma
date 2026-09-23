@@ -507,7 +507,10 @@ model Notification {
   category      NotificationCategory @default(SYSTEM)
   eventKey      String               @map("event_key") @db.VarChar(160)
   title         String               @db.VarChar(200)
+  titleKey      String?              @map("title_key") @db.VarChar(120)
   body          String?              @db.Text
+  bodyKey       String?              @map("body_key") @db.VarChar(120)
+  bodyParams    Json?                @map("body_params")
   link          String?              @db.VarChar(500)
   isRead        Boolean              @default(false) @map("is_read")
   createdAt     DateTime             @default(now()) @map("created_at")

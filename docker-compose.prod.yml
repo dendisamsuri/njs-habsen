@@ -43,6 +43,7 @@ services:
       retries: 30
 
   seed:
+    image: njs-habsen-app:latest
     build: .
     container_name: njs_habsen_seed
     restart: "no"
