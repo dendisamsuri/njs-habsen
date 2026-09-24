@@ -174,7 +174,7 @@ export class LeavesService {
     };
   }
 
-  private async validateAndCompute(user: any, companyId: number, input: LeaveCreateInput, existingId?: number) {
+  private async validateAndCompute(user: any, companyId: number, input: LeaveCreateInput, existingId?: number, existingAttachment?: string | null) {
     const c = this.c();
     const leaveType = await c.leaveType.findFirst({
       where: { id: input.leave_type_id, companyId, isActive: true },
@@ -207,7 +207,8 @@ export class LeavesService {
       totalDays = diff + 1;
     }
 
-    if (leaveType.requiresAttachment && !input.attachment) {
+    const hasAttachment = Boolean(input.attachment || existingAttachment);
+    if (leaveType.requiresAttachment && !hasAttachment) {
       throw err('LEAVE_ATTACHMENT_REQUIRED', 400);
     }
 
@@ -352,10 +353,20 @@ export class LeavesService {
       companyId,
       input,
       id,
+      row.attachment,
     );
     let attachmentPath = row.attachment;
     if (input.attachment) {
       attachmentPath = await this.saveAttachment(companyId, user.id, input.attachment);
+      if (row.attachment && row.attachment !== attachmentPath) {
+        try {
+          const { promises: fs } = await import('fs');
+          const path = await import('path');
+          await fs.unlink(path.join(process.env.UPLOAD_DIR ?? 'uploads', row.attachment));
+        } catch {
+          // ignore
+        }
+      }
     }
     if (!attachmentPath && leaveType.requiresAttachment) {
       throw err('LEAVE_ATTACHMENT_REQUIRED', 400);
