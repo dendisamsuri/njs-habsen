@@ -12,8 +12,8 @@
       <% rows.forEach(function(r) { %>
         <tr style="<%= r.is_read ? '' : 'background:var(--row-unread);' %>">
           <td><b><%= r.title %></b></td>
-          <td style="max-width:280px;"><%= r.body %></td>
-          <td class="mono" style="white-space:nowrap;"><%= r.created_at %></td>
+          <td><%= r.body %></td>
+          <td class="mono"><%= r.created_at %></td>
           <td><span class="badge <%= r.is_read ? 'green' : 'amber' %>"><%= r.is_read ? 'read' : t('unread') %></span></td>
         </tr>
       <% }) %>

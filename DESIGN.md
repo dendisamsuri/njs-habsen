@@ -65,6 +65,7 @@ Tema: pilihan tersimpan di `localStorage('theme')` (`light`/`dark`), fallback `p
 ## Komponen
 
 - Tabel = isi halaman. Header sticky, row hover halus, kolom penentu keputusan di depan.
+- Tabel: sel (`th`, `td`) `white-space: nowrap`, nilai tidak di-wrap ke baris baru. Wrapper tabel `overflow-x: auto`, scroll kanan boleh, wrap teks jangan.
 - Badge status: teks + titik `::before` — titik WAJIB menandai state nyata.
 - KPI: hanya angka nyata dari data; hint hanya menyebut field asli (HADIR, TERLAMAT). Tanpa delta/desain karangan.
 - Empty state: sebab + aksi nyata, lewat key i18n (`empty_*`). Tanpa "Tidak ada data" polos.

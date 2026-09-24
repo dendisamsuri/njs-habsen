@@ -20,9 +20,9 @@
           <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
           <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge blue"><%= r.jenis %></span></td>
-          <td class="mono" style="white-space:nowrap;"><%= r.start_date %> → <%= r.end_date %></td>
+          <td class="mono"><%= r.start_date %> → <%= r.end_date %></td>
           <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
-          <td style="max-width:240px;"><%= r.reason %></td>
+          <td><%= r.reason %></td>
           <td><div class="row-actions">
             <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
             <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>

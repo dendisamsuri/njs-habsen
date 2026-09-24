@@ -27,8 +27,8 @@
           <td class="mono"><%= e.attempt_count %></td>
           <td><span class="badge green"><%= e.success_count %></span></td>
           <td><span class="badge <%= (e.failed_count||0) > 0 ? 'red' : 'gray' %>"><%= e.failed_count %></span></td>
-          <td class="mono" style="white-space:nowrap;"><%= new Date(e.latest_started_at).toISOString().slice(0,16).replace('T',' ') %></td>
-          <td class="mono" style="font-size:.7rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;"><%= (e.attempts[0] && e.attempts[0].flow_id) || '-' %></td>
+          <td class="mono"><%= new Date(e.latest_started_at).toISOString().slice(0,16).replace('T',' ') %></td>
+          <td class="mono" style="font-size:.7rem;"><%= (e.attempts[0] && e.attempts[0].flow_id) || '-' %></td>
         </tr>
       <% }) %>
     </tbody>

@@ -20,7 +20,7 @@
           <td class="mono"><%= i + 1 %></td>
           <td><b><%= r.name %></b><div style="font-size:.74rem;color:var(--muted);" class="mono"><%= r.code || '' %></div></td>
           <td style="font-size:.82rem;"><%= r.company %></td>
-          <td style="max-width:260px;font-size:.82rem;"><%= r.address %></td>
+          <td style="font-size:.82rem;"><%= r.address %></td>
           <td class="mono"><%= r.radiusMeters %> m</td>
           <td style="text-align:center;"><span class="badge <%= r.status === 'Y' ? 'green' : 'red' %>"><%= r.status === 'Y' ? t('yes') : t('no') %></span></td>
           <td style="text-align:center;">

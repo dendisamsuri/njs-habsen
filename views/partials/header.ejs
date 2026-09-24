@@ -264,7 +264,7 @@
     .table-toolbar .count { font-size: .8rem; color: var(--muted); }
     .table-wrap { overflow-x: auto; }
     table.tbl { width: 100%; border-collapse: collapse; background: var(--card); min-width: 640px; }
-    .tbl th, .tbl td { text-align: left; padding: .62rem .8rem; font-size: .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+    .tbl th, .tbl td { text-align: left; padding: .62rem .8rem; font-size: .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: middle; white-space: nowrap; }
     .tbl thead th {
       background: var(--field-bg); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
       color: var(--muted); font-weight: 700; white-space: nowrap;
@@ -320,7 +320,7 @@
     button.small.ok { background: #059669; border-color: #059669; color: #fff; }
     button.small.no, button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
     form.inline { display: inline; }
-    .row-actions { display: flex; gap: .35rem; justify-content: center; flex-wrap: wrap; }
+    .row-actions { display: flex; gap: .35rem; justify-content: center; flex-wrap: nowrap; }
     .row-actions a { font-size: .78rem; }
 
     .filter-bar {

@@ -18,10 +18,10 @@
           <td><div class="cell-main"><div class="mini-avatar"><%= (r.nama_lengkap||'?').trim().charAt(0).toUpperCase() %></div><b><%= r.nama_lengkap %></b></div></td>
           <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge blue"><%= r.jenis %></span></td>
-          <td class="mono" style="white-space:nowrap;"><%= r.start_date %> → <%= r.end_date %></td>
+          <td class="mono"><%= r.start_date %> → <%= r.end_date %></td>
           <td class="mono"><%= r.total_days %></td>
           <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
-          <td style="max-width:240px;"><%= r.reason %></td>
+          <td><%= r.reason %></td>
         </tr>
       <% }) %>
     </tbody>
