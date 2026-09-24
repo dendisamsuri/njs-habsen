@@ -28,15 +28,26 @@
   <form method="post" action="<%= row && row.id ? '/ui/leave-entitlements/' + row.id : '/ui/leave-entitlements' %>">
     <div class="form-sec"><%= t('section_identity') %></div>
     <div class="form-grid">
+      <% if (typeof companies !== 'undefined' && companies) { %>
+      <div class="field full"><%= t('company_label') %>
+        <select name="companyId" id="companyId" required <%= row ? 'disabled' : '' %>>
+          <option value="" <%= companyId ? '' : 'selected' %>>-</option>
+          <% companies.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+        <div class="help"><%= t('company_first_help') %></div>
+      </div>
+      <% } %>
       <div class="field full"><%= t('employee') %>
-        <select name="user_id" required <%= row ? 'disabled' : '' %>>
+        <select name="user_id" id="userId" required <%= (row || !companyId) ? 'disabled' : '' %>>
           <option value="">-</option>
           <% employees.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.userId === v.id ? 'selected' : '' %>><%= v.namaLengkap %> (<%= v.email %>)</option><% }) %>
         </select>
-        <% if (row) { %><div class="help">Employee tidak dapat diubah; hapus lalu buat ulang.</div><% } %>
+        <% if (row) { %><div class="help">Employee tidak dapat diubah; hapus lalu buat ulang.</div><% } else if (!companyId) { %><div class="help"><%= t('company_first_help') %></div><% } %>
       </div>
       <div class="field full">Tipe cuti
-        <select name="leave_type_id" required <%= row ? 'disabled' : '' %>>
+        <select name="leave_type_id" required <%= (row || !companyId) ? 'disabled' : '' %>>
           <option value="">-</option>
           <% leaveTypes.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.leaveTypeId === v.id ? 'selected' : '' %>><%= v.name %></option><% }) %>
         </select>
@@ -57,9 +68,17 @@
     </div>
 
     <div class="form-actions">
-      <button class="btn primary" type="submit"><%= t('save') %></button>
+      <button class="btn primary" type="submit" <%= !row && !companyId ? 'disabled' : '' %>><%= t('save') %></button>
       <a class="btn" href="/ui/leave-entitlements"><%= t('cancel') %></a>
     </div>
   </form>
 </div>
+<script>
+(function () {
+  var co = document.getElementById('companyId');
+  if (co) co.addEventListener('change', function () {
+    location.href = location.pathname + (co.value ? '?companyId=' + encodeURIComponent(co.value) : '');
+  });
+})();
+</script>
 <%- include('partials/footer') %>
