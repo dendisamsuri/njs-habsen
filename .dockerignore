@@ -12,3 +12,4 @@ docker-compose.yml
 docker-compose.prod.yml
 docs
 AGENTS.md
+face-recognition-service

@@ -81,9 +81,10 @@ Flow: pack tar → scp → extract ke `/opt/njs-habsen` → `docker compose -f d
 
 | Item | Nilai |
 |---|---|
-| Compose prod | `docker-compose.prod.yml` (app + mysql:8 + seed profile) |
-| Containers | `njs_habsen_app`, `njs_habsen_mysql` |
+| Compose prod | `docker-compose.prod.yml` (app + mysql:8 + face + seed profile) |
+| Containers | `njs_habsen_app`, `njs_habsen_mysql`, `njs_habsen_face` |
 | Port app | `127.0.0.1:3000` (di belakang tunnel) |
+| Face service | `face-recognition-service/` → `http://face:8000` (internal, tanpa port publik) |
 | Env | `/opt/njs-habsen/.env` — **secret di server, jangan commit** |
 | Seed password demo | `Password123!` (email `*@demo.test`) |
 
