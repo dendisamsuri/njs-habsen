@@ -41,7 +41,7 @@
       <div class="form-sec"><%= t('company_label') %></div>
       <div class="form-grid" style="margin-bottom:1.3rem;">
         <div class="field full">
-          <select name="companyId">
+          <select name="companyId" id="companyId">
             <% companies.forEach(function(c) { %>
               <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
             <% }) %>
@@ -93,6 +93,10 @@
 </div>
 <script>
 (function () {
+  var co = document.getElementById('companyId');
+  if (co) co.addEventListener('change', function () {
+    location.href = location.pathname + (co.value ? '?companyId=' + encodeURIComponent(co.value) : '');
+  });
   document.querySelectorAll('.seg input[type="radio"]').forEach(function (r) {
     r.addEventListener('change', function () {
       var seg = r.closest('.seg');
