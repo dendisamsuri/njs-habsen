@@ -1,7 +1,39 @@
 <%- include('partials/header') %>
+<%
+  const f = (typeof filters !== 'undefined' && filters) ? filters : { search: '', role: '', status: '', position_id: '', location_id: '', company_id: '' };
+  const comps = (typeof companies !== 'undefined' && companies) ? companies : null;
+  const poss = (typeof positions !== 'undefined' && positions) ? positions : [];
+  const locs = (typeof locations !== 'undefined' && locations) ? locations : [];
+%>
 <div class="page-head"><div><h1><%= t('nav_employees') %></h1><p class="sub"><%= rows.length %> total</p></div><% if (canEdit) { %><div class="page-actions"><a class="btn primary" href="/ui/employees/new"><%= t('add') %></a></div><% } %></div>
 <% if (error) { %><div class="alert error"><%= error %></div><% } %>
 <div class="card">
+  <form method="get" action="/ui/employees" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
+    <div class="field"><%= t('search') %><input type="text" name="search" maxlength="64" value="<%= f.search %>" placeholder="nama / email / NIP" /></div>
+    <div class="field"><%= t('role') %><select name="role">
+      <option value="" <%= !f.role ? 'selected' : '' %>><%= t('all') %></option>
+      <% ['EMPLOYEE','SUPERVISOR','COMPANY_ADMIN'].forEach(function(v) { %><option value="<%= v %>" <%= f.role === v ? 'selected' : '' %>><%= v %></option><% }) %>
+    </select></div>
+    <div class="field"><%= t('active') %><select name="status">
+      <option value="" <%= !f.status ? 'selected' : '' %>><%= t('all') %></option>
+      <option value="Y" <%= f.status === 'Y' ? 'selected' : '' %>><%= t('yes') %></option>
+      <option value="N" <%= f.status === 'N' ? 'selected' : '' %>><%= t('no') %></option>
+    </select></div>
+    <div class="field"><%= t('position') %><select name="position_id">
+      <option value="" <%= !f.position_id ? 'selected' : '' %>><%= t('all') %></option>
+      <% poss.forEach(function(v) { %><option value="<%= v.id %>" <%= String(f.position_id) === String(v.id) ? 'selected' : '' %>><%= v.name %><% if (v.company && v.company.name) { %> · <%= v.company.name %><% } %></option><% }) %>
+    </select></div>
+    <div class="field"><%= t('location') %><select name="location_id">
+      <option value="" <%= !f.location_id ? 'selected' : '' %>><%= t('all') %></option>
+      <% locs.forEach(function(v) { %><option value="<%= v.id %>" <%= String(f.location_id) === String(v.id) ? 'selected' : '' %>><%= v.name %><% if (v.company && v.company.name) { %> · <%= v.company.name %><% } %></option><% }) %>
+    </select></div>
+    <% if (comps) { %><div class="field"><%= t('company_label') %><select name="company_id">
+      <option value="" <%= !f.company_id ? 'selected' : '' %>><%= t('all') %></option>
+      <% comps.forEach(function(v) { %><option value="<%= v.id %>" <%= String(f.company_id) === String(v.id) ? 'selected' : '' %>><%= v.name %></option><% }) %>
+    </select></div><% } %>
+    <button class="btn primary" type="submit"><%= t('filter') %></button>
+    <a class="btn" href="/ui/employees"><%= t('reset') %></a>
+  </form>
   <div class="table-toolbar"><b>Daftar employees</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_users') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl"><thead><tr><th><%= t('name') %></th><th><%= t('email') %></th><th>NIP</th><th><%= t('role') %></th><th><%= t('company_label') %></th><th><%= t('position') %></th><th><%= t('location') %></th><th>Jadwal</th><th><%= t('lead') %></th><th><%= t('active') %></th><th><%= t('actions') %></th></tr></thead>

@@ -152,6 +152,10 @@ function tr(key: string, locale: string): string {
     no: { id: 'Tidak', en: 'No' },
     in_use: { id: 'Data lokasi ini aktif atau digunakan', en: 'This location is active or in use' },
     search_ph: { id: 'Cari di tabel…', en: 'Search in tables…' },
+    search: { id: 'Cari', en: 'Search' },
+    all: { id: 'Semua', en: 'All' },
+    filter: { id: 'Filter', en: 'Filter' },
+    reset: { id: 'Reset', en: 'Reset' },
     overview: { id: 'Ringkasan', en: 'Overview' },
     summary: { id: 'Ringkasan', en: 'Summary' },
     quick_links: { id: 'Aksi cepat', en: 'Quick actions' },
@@ -476,18 +480,77 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const locale = this.locale(req);
-    const rows = await this.prisma.user.findMany({
-      where: this.tenantWhere(user, { deletedAt: null, role: { not: 'PLATFORM_ADMIN' } }),
-      include: {
-        position: true,
-        location: true,
-        schedule: true,
-        directLead: { select: { namaLengkap: true } },
-        company: { select: { name: true } },
-      },
-      orderBy: { namaLengkap: 'asc' }, take: 200,
-    });
-    return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
+    const q = req.query as Record<string, unknown>;
+    const search = String(q.search ?? '').trim().slice(0, 64);
+    const roleRaw = String(q.role ?? '');
+    const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(roleRaw) ? roleRaw : '';
+    const statusRaw = String(q.status ?? '');
+    const status = statusRaw === 'Y' || statusRaw === 'N' ? statusRaw : '';
+    const numOrNull = (v: unknown): number | null => {
+      const n = Number(v);
+      return Number.isInteger(n) && n > 0 ? n : null;
+    };
+    const positionId = numOrNull(q.position_id);
+    const locationId = numOrNull(q.location_id);
+    const companyFilter = user.companyId == null ? numOrNull(q.company_id) : null;
+    const where: Record<string, unknown> = {
+      deletedAt: null,
+      ...(role ? { role: role as never } : { role: { not: 'PLATFORM_ADMIN' } }),
+      ...(status ? { isActive: status === 'Y' } : {}),
+      ...(positionId ? { positionId } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(companyFilter ? { companyId: companyFilter } : {}),
+      ...(search
+        ? {
+            OR: [
+              { namaLengkap: { contains: search } },
+              { email: { contains: search } },
+              { nip: { contains: search } },
+            ],
+          }
+        : {}),
+    };
+    const optScope: Record<string, unknown> = {};
+    if (user.companyId != null) optScope.companyId = user.companyId;
+    else if (companyFilter != null) optScope.companyId = companyFilter;
+    const [rows, companies, positions, locations] = await Promise.all([
+      this.prisma.user.findMany({
+        where: this.tenantWhere(user, where),
+        include: {
+          position: true,
+          location: true,
+          schedule: true,
+          directLead: { select: { namaLengkap: true } },
+          company: { select: { name: true } },
+        },
+        orderBy: { namaLengkap: 'asc' }, take: 200,
+      }),
+      user.companyId == null
+        ? this.prisma.company.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
+        : Promise.resolve(null),
+      this.prisma.position.findMany({
+        where: user.companyId == null && companyFilter == null ? {} : optScope,
+        include: { company: { select: { name: true } } },
+        orderBy: { name: 'asc' }, take: 200,
+      }),
+      this.prisma.location.findMany({
+        where:
+          user.companyId == null && companyFilter == null
+            ? { status: 'Y' }
+            : { ...optScope, status: 'Y' },
+        include: { company: { select: { name: true } } },
+        orderBy: { name: 'asc' }, take: 200,
+      }),
+    ]);
+    const filters = {
+      search,
+      role,
+      status,
+      position_id: positionId ?? '',
+      location_id: locationId ?? '',
+      company_id: companyFilter ?? '',
+    };
+    return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, filters, companies, positions, locations, rows: rows.map((r) => ({
       id: r.id, nama_lengkap: r.namaLengkap, email: r.email, nip: r.nip ?? '-', role: r.role,
       company: r.company?.name ?? '-',
       posisi: r.position?.name ?? '-', lokasi: r.location?.name ?? '-', jadwal: r.schedule?.name ?? '-',
