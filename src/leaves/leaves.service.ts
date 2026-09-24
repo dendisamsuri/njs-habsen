@@ -2,14 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
 import { NotificationWriter } from '../notifications/notifications.controller';
-import { AttendanceService } from '../attendance/attendance.service';
 import {
   todayIso,
   isValidIsoDate,
-  dateRange,
-  addDaysIso,
 } from '../common/time.util';
-import { AttendancePhotoService } from '../attendance/attendance-photo.service';
 
 export interface LeaveCreateInput {
   leave_type_id: number;
@@ -27,8 +23,6 @@ export class LeavesService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly notifications: NotificationWriter,
-    private readonly attendance: AttendanceService,
-    private readonly photos: AttendancePhotoService,
   ) {}
 
   private c() {
@@ -248,22 +242,24 @@ export class LeavesService {
   }
 
   private async saveAttachment(companyId: number, userId: number, dataUri: string): Promise<string> {
-    return this.photos.upload(dataUri, userId, 'masuk').catch(async () => {
-      // attachments live under uploads/cuti — dedicated path
-      const { promises: fs } = await import('fs');
-      const path = await import('path');
-      const { randomBytes } = await import('crypto');
-      const DATA_URI_RE = /^data:image\/(jpeg|jpg|png);base64,/;
-      if (!DATA_URI_RE.test(dataUri)) throw err('LEAVE_ATTACHMENT_INVALID', 400);
-      const b64 = dataUri.slice(dataUri.indexOf(',') + 1).replace(/ /g, '+');
-      const buf = Buffer.from(b64, 'base64');
-      if (buf.length < 512 || buf.length > 2 * 1024 * 1024) throw err('LEAVE_ATTACHMENT_INVALID', 400);
-      const dir = path.join(process.env.UPLOAD_DIR ?? 'uploads', 'cuti');
-      await fs.mkdir(dir, { recursive: true });
-      const name = `cuti_${userId}_${Date.now()}_${randomBytes(4).toString('hex')}.jpg`;
-      await fs.writeFile(path.join(dir, name), buf);
-      return `cuti/${name}`;
-    });
+    // Attachments live under uploads/cuti — never uploads/absen.
+    const { promises: fs } = await import('fs');
+    const path = await import('path');
+    const { randomBytes } = await import('crypto');
+    const DATA_URI_RE = /^data:image\/(jpeg|jpg|png);base64,/;
+    if (!DATA_URI_RE.test(dataUri)) throw err('LEAVE_ATTACHMENT_INVALID', 400);
+    const b64 = dataUri.slice(dataUri.indexOf(',') + 1).replace(/ /g, '+');
+    const buf = Buffer.from(b64, 'base64');
+    if (buf.length < 512 || buf.length > 2 * 1024 * 1024) throw err('LEAVE_ATTACHMENT_INVALID', 400);
+    const isJpeg = buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    const isPng =
+      buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+    if (!isJpeg && !isPng) throw err('LEAVE_ATTACHMENT_INVALID', 400);
+    const dir = path.join(process.env.UPLOAD_DIR ?? 'uploads', 'cuti');
+    await fs.mkdir(dir, { recursive: true });
+    const name = `cuti_${userId}_${Date.now()}_${randomBytes(4).toString('hex')}.jpg`;
+    await fs.writeFile(path.join(dir, name), buf);
+    return `cuti/${name}`;
   }
 
   async create(user: any, input: LeaveCreateInput) {
@@ -420,8 +416,26 @@ export class LeavesService {
     const row = await c.leaveRequest.findFirst({
       where: { id, userId: user.id, deletedAt: null },
     });
-    if (!row?.attachment) throw err('NOT_FOUND', 404);
-    return row.attachment;
+    const stored = String(row?.attachment ?? '').trim();
+    if (!stored) throw err('NOT_FOUND', 404);
+    // Legacy rows vary: `cuti/name` (current), bare basename (PHP era),
+    // or bare absen basename (pre-fix saveAttachment fallback miss).
+    // Resolve against known dirs; never trust stored dirs outside them.
+    const parts = stored.split(/[\\/]/).filter(Boolean);
+    const file = parts.pop() ?? '';
+    if (!file || file === '.' || file === '..') throw err('NOT_FOUND', 404);
+    const ordered = <string[]>[];
+    if (parts.length === 1 && (parts[0] === 'cuti' || parts[0] === 'absen')) {
+      ordered.push(`${parts[0]}/${file}`);
+    }
+    ordered.push(`cuti/${file}`, `absen/${file}`, file);
+    const { existsSync } = await import('fs');
+    const path = await import('path');
+    const base = process.env.UPLOAD_DIR ?? 'uploads';
+    for (const rel of new Set(ordered)) {
+      if (existsSync(path.join(base, rel))) return rel;
+    }
+    throw err('NOT_FOUND', 404);
   }
 
   async softDelete(companyId: number, id: number, actorId: number, reason: string) {

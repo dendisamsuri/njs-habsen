@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
 import { LeavesController } from './leaves.controller';
 import { LeavesService } from './leaves.service';
-import { AttendanceModule } from '../attendance/attendance.module';
 
 @Module({
-  imports: [AttendanceModule],
   controllers: [LeavesController],
   providers: [LeavesService],
   exports: [LeavesService],
