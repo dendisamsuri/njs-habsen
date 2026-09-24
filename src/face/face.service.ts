@@ -60,6 +60,15 @@ export class FaceService {
         throw err('FACE_SERVICE_ERROR', 502);
       }
       if (!res.ok || json?.status !== 'success') {
+        const code =
+          typeof json?.error_code === 'string' ? json.error_code : null;
+        if (
+          res.status === 400 &&
+          (code === 'FACE_NO_FACE_DETECTED' ||
+            code === 'FACE_MULTIPLE_FACES')
+        ) {
+          throw err(code, 400);
+        }
         throw err('FACE_SERVICE_ERROR', 502);
       }
       return json;

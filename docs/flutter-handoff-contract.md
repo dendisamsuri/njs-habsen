@@ -111,6 +111,7 @@ Catatan: flag di `user` sekarang **JSON boolean** (bukan `'Y'/'N'`). `UserModel`
 - Idempotent: sudah absen → 200 + `already_recorded: true` (bukan error).
 - `img` wajib data-URI `data:image/(jpeg|jpg|png);base64,`.
 - Radius gagal → 400 `error_code: LOCATION_OUT_OF_RADIUS`.
+- Wajah (mode `recognition`): 0 wajah → 400 `FACE_NO_FACE_DETECTED`; >1 wajah → 400 `FACE_MULTIPLE_FACES`; tidak cocok → 400 `FACE_VERIFY_FAILED`.
 
 ### POST /attendance/out — sama, field `check_out`, `status_pulang`.
 - Belum absen masuk → 400 `ATTENDANCE_NOT_CHECKED_IN`.

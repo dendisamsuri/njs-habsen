@@ -52,6 +52,8 @@ export const MESSAGES: Record<string, Record<Locale, string>> = {
   FACE_NOT_REGISTERED: { id: 'Foto master belum tersedia. Silakan daftarkan wajah Anda.', en: 'Master photo missing. Please register your face.' },
   FACE_ALREADY_REGISTERED: { id: 'Wajah sudah terdaftar', en: 'Face already registered' },
   FACE_VERIFY_FAILED: { id: 'Wajah tidak cocok dengan foto master. Silakan coba kembali.', en: 'Face does not match master photo. Please try again.' },
+  FACE_NO_FACE_DETECTED: { id: 'Wajah tidak terdeteksi. Pastikan wajah jelas di kamera dan pencahayaan cukup.', en: 'No face detected. Make sure your face is clear and lighting is enough.' },
+  FACE_MULTIPLE_FACES: { id: 'Wajah tidak boleh lebih dari 1. Pastikan hanya satu wajah di frame.', en: 'Only one face is allowed. Make sure just one face is in the frame.' },
   FACE_SERVICE_UNAVAILABLE: { id: 'Layanan pengenalan wajah tidak tersedia', en: 'Face recognition service unavailable' },
   FACE_SERVICE_ERROR: { id: 'Terjadi kesalahan pada layanan wajah', en: 'Face service error' },
 

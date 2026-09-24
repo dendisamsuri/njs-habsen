@@ -247,13 +247,21 @@ export class AttendanceService {
       if (!faceRow) throw err('FACE_NOT_REGISTERED', 400);
       if (!input.img) throw err('PHOTO_REQUIRED', 400);
       await this.processLog.event(flowId, 'face_recognition', 'PENDING', 'verifying');
-      const result = await this.face.verify(faceRow.photoPath, input.img);
-      if (!result.matched) {
-        await this.processLog.fail(flowId, 'face_recognition', 'FACE_VERIFY_FAILED');
-        throw err('FACE_VERIFY_FAILED', 400);
+      try {
+        const result = await this.face.verify(faceRow.photoPath, input.img);
+        if (!result.matched) {
+          await this.processLog.fail(flowId, 'face_recognition', 'FACE_VERIFY_FAILED');
+          throw err('FACE_VERIFY_FAILED', 400);
+        }
+        tipe = 'recognition';
+        await this.processLog.succeed(flowId, 'face_recognition', { similarity: result.similarity });
+      } catch (e: any) {
+        const code = typeof e?.errorCode === 'string' ? e.errorCode : 'FACE_VERIFY_FAILED';
+        if (code !== 'FACE_VERIFY_FAILED') {
+          await this.processLog.fail(flowId, 'face_recognition', code);
+        }
+        throw e;
       }
-      tipe = 'recognition';
-      await this.processLog.succeed(flowId, 'face_recognition', { similarity: result.similarity });
     }
 
     // photo
@@ -373,9 +381,17 @@ export class AttendanceService {
       const faceRow = await c.faceRecognition.findFirst({ where: { companyId, userId } });
       if (!faceRow) throw err('FACE_NOT_REGISTERED', 400);
       if (!input.img) throw err('PHOTO_REQUIRED', 400);
-      const result = await this.face.verify(faceRow.photoPath, input.img);
-      if (!result.matched) throw err('FACE_VERIFY_FAILED', 400);
-      tipe = 'recognition';
+      try {
+        const result = await this.face.verify(faceRow.photoPath, input.img);
+        if (!result.matched) throw err('FACE_VERIFY_FAILED', 400);
+        tipe = 'recognition';
+      } catch (e: any) {
+        const code = typeof e?.errorCode === 'string' ? e.errorCode : 'FACE_VERIFY_FAILED';
+        if (code !== 'FACE_VERIFY_FAILED') {
+          await this.processLog.fail(flowId, 'face_recognition', code);
+        }
+        throw e;
+      }
     }
 
     let photoName: string | null = null;

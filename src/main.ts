@@ -18,6 +18,7 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  app.useBodyParser('json', { limit: '10mb' });
   app.use((req: any, _res: any, next: any) => {
     req.locale = resolveLocale(req.headers['accept-language']);
     next();

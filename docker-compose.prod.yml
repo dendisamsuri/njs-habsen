@@ -8,6 +8,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      TZ: Asia/Jakarta
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/njs_habsen?timezone=Z
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
@@ -68,6 +69,7 @@ services:
     environment:
       DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/njs_habsen?timezone=Z
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      TZ: Asia/Jakarta
       NODE_ENV: production
     depends_on:
       mysql:

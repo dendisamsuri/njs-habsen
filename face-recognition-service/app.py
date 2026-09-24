@@ -95,6 +95,12 @@ def decode_image(encoded):
     return image
 
 
+class FaceCountError(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def extract_feature(image, label):
     height, width = image.shape[:2]
     scale = min(MAX_INFERENCE_WIDTH / width, MAX_INFERENCE_HEIGHT / height, 1.0)
@@ -108,8 +114,16 @@ def extract_feature(image, label):
     detector.setInputSize((width, height))
     _, faces = detector.detect(image)
     count = 0 if faces is None else len(faces)
-    if count != 1:
-        raise ValueError(f"{label} harus berisi tepat satu wajah")
+    if count == 0:
+        raise FaceCountError(
+            "FACE_NO_FACE_DETECTED",
+            f"{label} tidak terdeteksi. Pastikan wajah jelas di kamera dan pencahayaan cukup.",
+        )
+    if count > 1:
+        raise FaceCountError(
+            "FACE_MULTIPLE_FACES",
+            f"{label} tidak boleh lebih dari 1. Pastikan hanya satu wajah di frame.",
+        )
 
     aligned = recognizer.alignCrop(image, faces[0])
     return recognizer.feature(aligned)
@@ -129,6 +143,8 @@ def verify():
         similarity = float(
             recognizer.match(master, probe, cv2.FaceRecognizerSF_FR_COSINE)
         )
+    except FaceCountError as exc:
+        return jsonify({"status": "error", "error_code": exc.code, "message": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 422
     except cv2.error:
@@ -149,6 +165,8 @@ def validate():
     payload = request.get_json(silent=True) or {}
     try:
         extract_feature(decode_image(payload.get("image")), "Foto master")
+    except FaceCountError as exc:
+        return jsonify({"status": "error", "error_code": exc.code, "message": str(exc)}), 400
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 422
     except cv2.error:
