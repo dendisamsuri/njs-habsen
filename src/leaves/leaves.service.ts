@@ -422,11 +422,46 @@ export class LeavesService {
     return true;
   }
 
+  private async isInSubtree(
+    companyId: number | null,
+    rootId: number,
+    targetId: number,
+  ): Promise<boolean> {
+    if (targetId === rootId) return false;
+    const c = this.c();
+    let frontier = [rootId];
+    for (let depth = 0; depth < 10 && frontier.length > 0; depth++) {
+      const children: any[] = await c.user.findMany({
+        where: {
+          ...(companyId == null ? {} : { companyId }),
+          directLeadId: { in: frontier },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      frontier = [];
+      for (const ch of children) {
+        if (ch.id === targetId) return true;
+        frontier.push(ch.id);
+      }
+    }
+    return false;
+  }
+
   async attachment(user: any, id: number): Promise<string> {
     const c = this.c();
     const row = await c.leaveRequest.findFirst({
-      where: { id, userId: user.id, deletedAt: null },
+      where: { id, deletedAt: null },
     });
+    if (!row) throw err('LEAVE_NOT_FOUND', 404);
+    if (row.userId !== user.id) {
+      if (user.role === 'SUPERVISOR') {
+        const allowed = await this.isInSubtree(user.companyId ?? null, user.id, row.userId);
+        if (!allowed) throw err('LEAVE_NOT_DIRECT_REPORT', 403);
+      } else if (user.role !== 'COMPANY_ADMIN' && user.role !== 'PLATFORM_ADMIN') {
+        throw err('LEAVE_NOT_FOUND', 404);
+      }
+    }
     const stored = String(row?.attachment ?? '').trim();
     if (!stored) throw err('NOT_FOUND', 404);
     // Legacy rows vary: `cuti/name` (current), bare basename (PHP era),
