@@ -9,6 +9,7 @@
 <div class="page-head">
   <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permission' ? t('nav_apv_permission') : t('nav_apv_replacement') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
 </div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
 <div class="card">
   <div class="table-toolbar"><b>Antrean persetujuan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_approvals') %></div><% } else { %>

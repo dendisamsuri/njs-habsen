@@ -327,4 +327,60 @@ describe('API e2e (smoke)', () => {
       .expect(400);
     expect(res.body.error_code).toBe('VALIDATION_ERROR');
   });
+
+  itDb('user validation: nip, phone, email duplicate check in company', async () => {
+    const tokenA = await loginAs('admin@demo.test');
+
+    const emailDup = await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({
+        email: 'employee@demo.test',
+        password: 'Password123!',
+        nama_lengkap: 'Dup Email',
+        nip: 'NIP-NEW-99',
+        phone: '081299999991',
+      })
+      .expect(409);
+    expect(emailDup.body.error_code).toBe('EMAIL_TAKEN');
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({
+        email: 'unique1@demo.test',
+        password: 'Password123!',
+        nama_lengkap: 'User Unique 1',
+        nip: 'NIP-DUP-TEST',
+        phone: '081299998888',
+      })
+      .expect(201);
+    expect(created.body.data.id).toBeTruthy();
+
+    const nipDup = await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({
+        email: 'unique2@demo.test',
+        password: 'Password123!',
+        nama_lengkap: 'User Unique 2',
+        nip: 'NIP-DUP-TEST',
+        phone: '081299998889',
+      })
+      .expect(409);
+    expect(nipDup.body.error_code).toBe('NIP_TAKEN');
+
+    const phoneDup = await request(app.getHttpServer())
+      .post('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({
+        email: 'unique3@demo.test',
+        password: 'Password123!',
+        nama_lengkap: 'User Unique 3',
+        nip: 'NIP-NEW-TEST3',
+        phone: '081299998888',
+      })
+      .expect(409);
+    expect(phoneDup.body.error_code).toBe('PHONE_TAKEN');
+  });
 });

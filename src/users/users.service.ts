@@ -102,6 +102,16 @@ export class UsersService {
     // email unique globally — lookup must stay unscoped
     const existing = await this.prisma.user.findFirst({ where: { email } });
     if (existing) throw err('EMAIL_TAKEN', 409);
+    const nip = input.nip ? input.nip.trim() : null;
+    if (nip) {
+      const dupNip = await this.prisma.user.findFirst({ where: { companyId, nip } });
+      if (dupNip) throw err('NIP_TAKEN', 409);
+    }
+    const phone = input.phone ? input.phone.trim() : null;
+    if (phone) {
+      const dupPhone = await this.prisma.user.findFirst({ where: { companyId, phone } });
+      if (dupPhone) throw err('PHONE_TAKEN', 409);
+    }
     if (!input.password || input.password.length < 8) throw err('INVALID_PASSWORD', 400);
     await assertEmployeeRefs(c, companyId, input);
     const passwordHash = await bcrypt.hash(input.password, 10);
@@ -111,13 +121,13 @@ export class UsersService {
         email,
         passwordHash,
         namaLengkap: input.nama_lengkap,
-        nip: input.nip ?? null,
+        nip,
         role: (input.role as any) ?? 'EMPLOYEE',
         directLeadId: input.direct_lead_id ?? null,
         positionId: input.position_id ?? null,
         locationId: input.location_id ?? null,
         scheduleId: input.schedule_id ?? null,
-        phone: input.phone ?? null,
+        phone,
         isFlexibleLocation: input.is_flexible_location ?? false,
         allowReplacementOff: input.allow_replacement_off ?? true,
         allowScheduleSelection: input.allow_schedule_selection ?? false,
@@ -139,17 +149,27 @@ export class UsersService {
       const dup = await this.prisma.user.findFirst({ where: { email: input.email.toLowerCase().trim() } });
       if (dup) throw err('EMAIL_TAKEN', 409);
     }
+    const nextNip = input.nip !== undefined ? (input.nip ? input.nip.trim() : null) : undefined;
+    if (nextNip !== undefined && nextNip !== user.nip && nextNip !== null) {
+      const dupNip = await this.prisma.user.findFirst({ where: { companyId, nip: nextNip, NOT: { id } } });
+      if (dupNip) throw err('NIP_TAKEN', 409);
+    }
+    const nextPhone = input.phone !== undefined ? (input.phone ? input.phone.trim() : null) : undefined;
+    if (nextPhone !== undefined && nextPhone !== user.phone && nextPhone !== null) {
+      const dupPhone = await this.prisma.user.findFirst({ where: { companyId, phone: nextPhone, NOT: { id } } });
+      if (dupPhone) throw err('PHONE_TAKEN', 409);
+    }
     await assertEmployeeRefs(c, companyId, input);
     const data: any = {};
     if (input.email) data.email = input.email.toLowerCase().trim();
     if (input.nama_lengkap) data.namaLengkap = input.nama_lengkap;
-    if (input.nip !== undefined) data.nip = input.nip;
+    if (input.nip !== undefined) data.nip = nextNip;
     if (input.role) data.role = input.role as any;
     if (input.direct_lead_id !== undefined) data.directLeadId = input.direct_lead_id;
     if (input.position_id !== undefined) data.positionId = input.position_id;
     if (input.location_id !== undefined) data.locationId = input.location_id;
     if (input.schedule_id !== undefined) data.scheduleId = input.schedule_id;
-    if (input.phone !== undefined) data.phone = input.phone;
+    if (input.phone !== undefined) data.phone = nextPhone;
     if (input.is_flexible_location !== undefined) data.isFlexibleLocation = input.is_flexible_location;
     if (input.allow_replacement_off !== undefined) data.allowReplacementOff = input.allow_replacement_off;
     if (input.allow_schedule_selection !== undefined) data.allowScheduleSelection = input.allow_schedule_selection;

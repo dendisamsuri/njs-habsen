@@ -96,6 +96,8 @@ model User {
   correctionAudits AttendanceCorrectionAudit[]
   userSchedules    UserSchedule[]
 
+  @@unique([companyId, nip])
+  @@unique([companyId, phone])
   @@index([companyId])
   @@index([directLeadId])
   @@map("users")

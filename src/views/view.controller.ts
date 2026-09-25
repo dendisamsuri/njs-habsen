@@ -550,7 +550,7 @@ export class ViewController {
       location_id: locationId ?? '',
       company_id: companyFilter ?? '',
     };
-    return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, filters, companies, positions, locations, rows: rows.map((r) => ({
+    return res.render('employees', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? ViewController.uiFlashError(String(req.query.error), req.query.detail != null ? String(req.query.detail) : null, locale) : null, filters, companies, positions, locations, rows: rows.map((r) => ({
       id: r.id, nama_lengkap: r.namaLengkap, email: r.email, nip: r.nip ?? '-', role: r.role,
       company: r.company?.name ?? '-',
       posisi: r.position?.name ?? '-', lokasi: r.location?.name ?? '-', jadwal: r.schedule?.name ?? '-',
@@ -562,6 +562,28 @@ export class ViewController {
     const raw = body.schedule_ids;
     const list = raw == null || raw === '' ? [] : Array.isArray(raw) ? raw : [raw];
     return [...new Set(list.map((v: any) => Number(v)).filter((n: number) => Number.isInteger(n) && n > 0))];
+  }
+
+  // Translate a query-flag error code (+ optional detail) for inline alerts and popups.
+  private static uiFlashError(code: string, detail: string | null, locale: string): string {
+    const base = t(code, locale as any);
+    return detail ? `${base} — ${detail}` : base;
+  }
+
+  // Map assertEmployeeRefs failure codes to field-specific popup codes.
+  private static refErrorCode(code: unknown): string {
+    switch (String(code ?? '')) {
+      case 'POSITION_NOT_FOUND':
+        return 'EMP_POSITION_INVALID';
+      case 'LOCATION_NOT_FOUND':
+        return 'EMP_LOCATION_INVALID';
+      case 'SCHEDULE_NOT_FOUND':
+        return 'EMP_SCHEDULE_INVALID';
+      case 'USER_NOT_FOUND':
+        return 'EMP_LEAD_INVALID';
+      default:
+        return 'VALIDATION_ERROR';
+    }
   }
 
   private async employeeFormData(user: any, row: any = null, companyId: number | null = null) {
@@ -605,7 +627,7 @@ export class ViewController {
     if (!row) return res.redirect('/ui/employees');
     const locale = this.locale(req);
     const companyId = await this.mdCompanyId(user, { companyId: req.query.companyId });
-    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, row, companyId)), error: null, page: 'employees' });
+    return res.render('employee-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, ...(await this.employeeFormData(user, row, companyId)), error: req.query.error ? ViewController.uiFlashError(String(req.query.error), req.query.detail != null ? String(req.query.detail) : null, locale) : null, page: 'employees' });
   }
 
   @Post('employees')
@@ -618,9 +640,22 @@ export class ViewController {
     const email = String(body.email ?? '').trim().toLowerCase();
     const name = String(body.nama_lengkap ?? '').trim();
     const password = String(body.password ?? '');
-    if (!email || !name || password.length < 8) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
-    const exists = await this.prisma.user.findUnique({ where: { email } });
-    if (exists) return res.redirect('/ui/employees?error=DUPLICATE');
+    if (!name) return res.redirect('/ui/employees?error=EMP_NAME_REQUIRED');
+    if (!email) return res.redirect('/ui/employees?error=EMP_EMAIL_REQUIRED');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect('/ui/employees?error=EMP_EMAIL_INVALID');
+    if (password.length < 8) return res.redirect('/ui/employees?error=EMP_PASSWORD_SHORT');
+    const exists = await this.prisma.user.findFirst({ where: { companyId, email } });
+    if (exists) return res.redirect(`/ui/employees?error=EMAIL_TAKEN&detail=${encodeURIComponent(email)}`);
+    const nip = String(body.nip ?? '').trim() || null;
+    if (nip) {
+      const existsNip = await this.prisma.user.findFirst({ where: { companyId, nip } });
+      if (existsNip) return res.redirect(`/ui/employees?error=NIP_TAKEN&detail=${encodeURIComponent(nip)}`);
+    }
+    const phone = String(body.phone ?? '').trim() || null;
+    if (phone) {
+      const existsPhone = await this.prisma.user.findFirst({ where: { companyId, phone } });
+      if (existsPhone) return res.redirect(`/ui/employees?error=PHONE_TAKEN&detail=${encodeURIComponent(phone)}`);
+    }
     const scheduleIds = ViewController.scheduleIdsFromBody(body);
     const refs = {
       position_id: Number(body.position_id) || null,
@@ -631,12 +666,12 @@ export class ViewController {
     };
     try {
       await assertEmployeeRefs(this.prisma, companyId, refs);
-    } catch {
-      return res.redirect('/ui/employees?error=VALIDATION_ERROR');
+    } catch (e: any) {
+      return res.redirect(`/ui/employees?error=${ViewController.refErrorCode(e?.errorCode)}`);
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
     const dobRaw = String(body.date_of_birth ?? '').trim();
-    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect('/ui/employees?error=VALIDATION_ERROR');
+    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect('/ui/employees?error=EMP_DOB_INVALID');
     const gender = ['Laki-laki', 'Perempuan'].includes(String(body.gender ?? '')) ? body.gender : null;
     const created = await this.prisma.user.create({ data: {
       companyId, email, namaLengkap: name, nip: body.nip || null,
@@ -652,7 +687,7 @@ export class ViewController {
         data: scheduleIds.map((scheduleId) => ({ userId: created.id, scheduleId })),
       });
     }
-    return res.redirect('/ui/employees');
+    return res.redirect('/ui/employees?ok=create');
   }
 
   @Post('employees/:id')
@@ -666,8 +701,20 @@ export class ViewController {
     const companyId = (await this.mdCompanyId(user, body)) ?? row.companyId;
     if (companyId == null) return res.redirect(`/ui/employees/${id}/edit?error=COMPANY_REQUIRED`);
     const email = String(body.email ?? '').trim().toLowerCase();
-    const exists = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
-    if (exists) return res.redirect(`/ui/employees/${id}/edit?error=DUPLICATE`);
+    if (!email) return res.redirect(`/ui/employees/${id}/edit?error=EMP_EMAIL_REQUIRED`);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.redirect(`/ui/employees/${id}/edit?error=EMP_EMAIL_INVALID`);
+    const exists = await this.prisma.user.findFirst({ where: { companyId, email, NOT: { id } } });
+    if (exists) return res.redirect(`/ui/employees/${id}/edit?error=EMAIL_TAKEN&detail=${encodeURIComponent(email)}`);
+    const nip = String(body.nip ?? '').trim() || null;
+    if (nip) {
+      const existsNip = await this.prisma.user.findFirst({ where: { companyId, nip, NOT: { id } } });
+      if (existsNip) return res.redirect(`/ui/employees/${id}/edit?error=NIP_TAKEN&detail=${encodeURIComponent(nip)}`);
+    }
+    const phone = String(body.phone ?? '').trim() || null;
+    if (phone) {
+      const existsPhone = await this.prisma.user.findFirst({ where: { companyId, phone, NOT: { id } } });
+      if (existsPhone) return res.redirect(`/ui/employees/${id}/edit?error=PHONE_TAKEN&detail=${encodeURIComponent(phone)}`);
+    }
     const scheduleIds = ViewController.scheduleIdsFromBody(body);
     const refs = {
       position_id: Number(body.position_id) || null,
@@ -678,12 +725,12 @@ export class ViewController {
     };
     try {
       await assertEmployeeRefs(this.prisma, companyId, refs);
-    } catch {
-      return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
+    } catch (e: any) {
+      return res.redirect(`/ui/employees/${id}/edit?error=${ViewController.refErrorCode(e?.errorCode)}`);
     }
     const role = ['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'].includes(body.role) ? body.role : 'EMPLOYEE';
     const dobRaw = String(body.date_of_birth ?? '').trim();
-    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect(`/ui/employees/${id}/edit?error=VALIDATION_ERROR`);
+    if (dobRaw && !DATE_RE.test(dobRaw)) return res.redirect(`/ui/employees/${id}/edit?error=EMP_DOB_INVALID`);
     const gender = ['Laki-laki', 'Perempuan'].includes(String(body.gender ?? '')) ? body.gender : null;
     const data: any = {
       companyId, email, namaLengkap: String(body.nama_lengkap ?? '').trim(), nip: body.nip || null,
@@ -702,7 +749,7 @@ export class ViewController {
         data: scheduleIds.map((scheduleId) => ({ userId: id, scheduleId })),
       });
     }
-    return res.redirect('/ui/employees');
+    return res.redirect('/ui/employees?ok=update');
   }
 
   @Post('employees/:id/toggle')
@@ -713,7 +760,7 @@ export class ViewController {
     const id = Number(req.params.id);
     const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
     if (row) await this.prisma.user.update({ where: { id }, data: { isActive: !row.isActive } });
-    return res.redirect('/ui/employees');
+    return res.redirect('/ui/employees?ok=toggle');
   }
 
   @Post('employees/:id/delete')
@@ -724,7 +771,7 @@ export class ViewController {
     const id = Number(req.params.id);
     const row = await this.prisma.user.findFirst({ where: this.tenantWhere(user, { id, deletedAt: null }) });
     if (row) await this.prisma.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
-    return res.redirect('/ui/employees');
+    return res.redirect('/ui/employees?ok=delete');
   }
 
   @Get('leave-entitlements')
@@ -741,7 +788,7 @@ export class ViewController {
       },
       orderBy: [{ user: { namaLengkap: 'asc' } }, { leaveType: { name: 'asc' } }], take: 500,
     });
-    return res.render('leave-entitlements', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, year, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? String(req.query.error) : null, rows: rows.map((r) => ({
+    return res.render('leave-entitlements', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, year, canEdit: user.role !== 'SUPERVISOR', error: req.query.error ? ViewController.uiFlashError(String(req.query.error), req.query.detail != null ? String(req.query.detail) : null, locale) : null, rows: rows.map((r) => ({
       id: r.id, employee: r.user.namaLengkap, company: r.user.company?.name ?? '-', type: r.leaveType.name, year: r.year,
       entitlement: Number(r.entitlement), taken: Number(r.taken), remaining: r.remaining == null ? Number(r.entitlement) - Number(r.taken) : Number(r.remaining),
     })), page: 'leave-entitlements' });
@@ -762,7 +809,7 @@ export class ViewController {
             this.prisma.user.findMany({ where: { deletedAt: null, role: { not: 'PLATFORM_ADMIN' }, companyId: scopeId }, orderBy: { namaLengkap: 'asc' } }),
             this.prisma.leaveType.findMany({ where: { isActive: true, companyId: scopeId }, orderBy: { name: 'asc' } }),
           ]);
-    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, companies, companyId: scopeId, employees, leaveTypes, row: null, error: req.query.error ? String(req.query.error) : null, page: 'leave-entitlements' });
+    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, companies, companyId: scopeId, employees, leaveTypes, row: null, error: req.query.error ? ViewController.uiFlashError(String(req.query.error), req.query.detail != null ? String(req.query.detail) : null, locale) : null, page: 'leave-entitlements' });
   }
 
   @Get('leave-entitlements/:id/edit')
@@ -778,7 +825,7 @@ export class ViewController {
       this.prisma.leaveType.findMany({ where: { isActive: true, companyId: row.companyId }, orderBy: { name: 'asc' } }),
     ]);
     const locale = this.locale(req);
-    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, companies, companyId: row.companyId, employees, leaveTypes, row, error: req.query.error ? String(req.query.error) : null, page: 'leave-entitlements' });
+    return res.render('leave-entitlement-form', { ...this.helpers(locale), user: { nama_lengkap: user.namaLengkap, role: user.role }, companies, companyId: row.companyId, employees, leaveTypes, row, error: req.query.error ? ViewController.uiFlashError(String(req.query.error), req.query.detail != null ? String(req.query.detail) : null, locale) : null, page: 'leave-entitlements' });
   }
 
   @Post('leave-entitlements')
@@ -787,15 +834,19 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user || !this.requireMdEdit(user, res, '/ui/leave-entitlements')) return res as any;
     const userId = Number(body.user_id), leaveTypeId = Number(body.leave_type_id), year = Number(body.year), entitlement = Number(body.entitlement);
-    if (!userId || !leaveTypeId || !year || !Number.isFinite(entitlement) || entitlement < 0) return res.redirect('/ui/leave-entitlements?error=VALIDATION_ERROR');
+    if (!userId) return res.redirect('/ui/leave-entitlements?error=ENT_USER_REQUIRED');
+    if (!leaveTypeId) return res.redirect('/ui/leave-entitlements?error=ENT_TYPE_REQUIRED');
+    if (!year || year < 2000 || year > 2100) return res.redirect('/ui/leave-entitlements?error=ENT_YEAR_INVALID');
+    if (!Number.isFinite(entitlement) || entitlement < 0) return res.redirect('/ui/leave-entitlements?error=ENT_VALUE_INVALID');
     const companyId = await this.mdCompanyId(user, body);
     if (companyId == null) return res.redirect('/ui/leave-entitlements/new?error=COMPANY_REQUIRED');
     const target = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null, companyId } });
     const type = await this.prisma.leaveType.findFirst({ where: { id: leaveTypeId, companyId } });
-    if (!target || !type) return res.redirect('/ui/leave-entitlements?error=VALIDATION_ERROR');
-    if (target.companyId !== type.companyId) return res.redirect('/ui/leave-entitlements?error=VALIDATION_ERROR');
+    if (!target) return res.redirect('/ui/leave-entitlements?error=ENT_USER_INVALID');
+    if (!type) return res.redirect('/ui/leave-entitlements?error=ENT_TYPE_INVALID');
+    if (target.companyId !== type.companyId) return res.redirect('/ui/leave-entitlements?error=ENT_COMPANY_MISMATCH');
     await this.prisma.leaveBalance.upsert({ where: { companyId_userId_leaveTypeId_year: { companyId: target.companyId!, userId, leaveTypeId, year } }, create: { companyId: target.companyId!, userId, leaveTypeId, year, entitlement }, update: { entitlement } });
-    return res.redirect(`/ui/leave-entitlements?year=${year}`);
+    return res.redirect(`/ui/leave-entitlements?year=${year}&ok=save`);
   }
 
   @Post('leave-entitlements/:id')
@@ -807,9 +858,10 @@ export class ViewController {
     const row = await this.prisma.leaveBalance.findFirst({ where: this.tenantWhere(user, { id }) });
     if (!row) return res.redirect('/ui/leave-entitlements');
     const entitlement = Number(body.entitlement);
-    if (!Number.isFinite(entitlement) || entitlement < Number(row.taken)) return res.redirect(`/ui/leave-entitlements/${id}/edit?error=VALIDATION_ERROR`);
+    if (!Number.isFinite(entitlement) || entitlement < 0) return res.redirect(`/ui/leave-entitlements/${id}/edit?error=ENT_VALUE_INVALID`);
+    if (entitlement < Number(row.taken)) return res.redirect(`/ui/leave-entitlements/${id}/edit?error=ENT_BELOW_TAKEN&detail=${encodeURIComponent(String(Number(row.taken)))}`);
     await this.prisma.leaveBalance.update({ where: { id }, data: { entitlement } });
-    return res.redirect(`/ui/leave-entitlements?year=${row.year}`);
+    return res.redirect(`/ui/leave-entitlements?year=${row.year}&ok=update`);
   }
 
   @Post('leave-entitlements/:id/delete')
@@ -820,9 +872,9 @@ export class ViewController {
     const id = Number(req.params.id);
     const row = await this.prisma.leaveBalance.findFirst({ where: this.tenantWhere(user, { id }) });
     if (!row) return res.redirect('/ui/leave-entitlements');
-    if (Number(row.taken) > 0) return res.redirect(`/ui/leave-entitlements?year=${row.year}&error=IN_USE`);
+    if (Number(row.taken) > 0) return res.redirect(`/ui/leave-entitlements?year=${row.year}&error=ENT_HAS_TAKEN&detail=${encodeURIComponent(String(Number(row.taken)))}`);
     await this.prisma.leaveBalance.delete({ where: { id } });
-    return res.redirect(`/ui/leave-entitlements?year=${row.year}`);
+    return res.redirect(`/ui/leave-entitlements?year=${row.year}&ok=delete`);
   }
 
   @Get('leaves')
@@ -942,6 +994,7 @@ export class ViewController {
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       rows,
       kind,
+      error: req.query.error ? t(String(req.query.error), locale as any) : null,
       page: `approvals/${slug}`,
     });
   }
@@ -956,20 +1009,31 @@ export class ViewController {
     const decision = body?.decision === 'rejected' ? 'rejected' : 'approved';
     const comment =
       String(body?.comment ?? '') || (decision === 'rejected' ? 'Ditolak via dashboard' : '');
-    await this.approvals.transition(
-      kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',
-      id,
-      decision,
-      {
-        id: user.id,
-        name: user.namaLengkap,
-        role: user.role,
-        companyId: user.companyId,
-      },
-      comment,
-    );
+    const slugBack = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    try {
+      await this.approvals.transition(
+        kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',
+        id,
+        decision,
+        {
+          id: user.id,
+          name: user.namaLengkap,
+          role: user.role,
+          companyId: user.companyId,
+        },
+        comment,
+      );
+    } catch (e: any) {
+      const code = String(e?.errorCode ?? e?.message ?? 'APPROVAL_SIDE_EFFECT_FAILED');
+      const known = [
+        'LEAVE_NOT_FOUND', 'LEAVE_ALREADY_PROCESSED', 'LEAVE_SELF_APPROVAL_DENIED',
+        'LEAVE_NOT_DIRECT_REPORT', 'LEAVE_INVALID_TRANSITION', 'LEAVE_COMMENT_INVALID',
+        'LEAVE_INVALID_ACTOR', 'APPROVAL_SIDE_EFFECT_FAILED', 'NOT_FOUND',
+      ];
+      return res.redirect(`/ui/approvals/${slugBack}?error=${known.includes(code) ? code : 'APPROVAL_SIDE_EFFECT_FAILED'}`);
+    }
     const slug = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
-    return res.redirect(`/ui/approvals/${slug}`);
+    return res.redirect(`/ui/approvals/${slug}?ok=${decision === 'rejected' ? 'reject' : 'approve'}`);
   }
 
   @Get('reports')
@@ -1126,7 +1190,7 @@ export class ViewController {
     if (dup) return fail('NAME_EXISTS', this.companyFormKeep(v));
     const company = await this.prisma.company.create({ data: v });
     await this.prisma.companySetting.create({ data: { companyId: company.id } });
-    return res.redirect('/ui/companies');
+    return res.redirect('/ui/companies?ok=create');
   }
 
   @Post('companies/:id')
@@ -1157,7 +1221,7 @@ export class ViewController {
       where: { id: { not: id }, OR: [{ code: v.code }, { name: v.name }] },
     });
     if (dup) return fail('NAME_EXISTS', this.companyFormKeep({ ...v, id }));
-    return this.prisma.company.update({ where: { id }, data: v }).then(() => res.redirect('/ui/companies'));
+    return this.prisma.company.update({ where: { id }, data: v }).then(() => res.redirect('/ui/companies?ok=update'));
   }
 
   @Post('companies/:id/toggle')
@@ -1174,7 +1238,7 @@ export class ViewController {
         data: { status: row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
       });
     }
-    return res.redirect('/ui/companies');
+    return res.redirect('/ui/companies?ok=toggle');
   }
 
   @Post('companies/:id/delete')
@@ -1209,7 +1273,7 @@ export class ViewController {
     }
     await this.prisma.companySetting.deleteMany({ where: { companyId: id } });
     await this.prisma.company.delete({ where: { id } });
-    return res.redirect('/ui/companies');
+    return res.redirect('/ui/companies?ok=delete');
   }
 
   @Get('locations')
@@ -1418,7 +1482,7 @@ export class ViewController {
         status: v.status,
       },
     });
-    return res.redirect('/ui/locations');
+    return res.redirect('/ui/locations?ok=create');
   }
 
   @Post('locations/:id')
@@ -1485,7 +1549,7 @@ export class ViewController {
         status: v.status,
       },
     });
-    return res.redirect('/ui/locations');
+    return res.redirect('/ui/locations?ok=update');
   }
 
   @Post('locations/:id/toggle')
@@ -1499,7 +1563,7 @@ export class ViewController {
     if (row) {
       await this.prisma.location.update({ where: { id }, data: { status: row.status === 'Y' ? 'N' : 'Y' } });
     }
-    return res.redirect('/ui/locations');
+    return res.redirect('/ui/locations?ok=toggle');
   }
 
   @Post('locations/:id/delete')
@@ -1540,7 +1604,7 @@ export class ViewController {
       }
       await this.prisma.location.delete({ where: { id } });
     }
-    return res.redirect('/ui/locations');
+    return res.redirect('/ui/locations?ok=delete');
   }
 
   @Get('schedules')
@@ -1745,7 +1809,7 @@ export class ViewController {
     await this.prisma.position.create({
       data: { companyId, code: v.code, name: v.name, isActive: v.isActive },
     });
-    return res.redirect('/ui/positions');
+    return res.redirect('/ui/positions?ok=create');
   }
 
   @Post('positions/:id')
@@ -1786,7 +1850,7 @@ export class ViewController {
       where: { id },
       data: { companyId, code: v.code, name: v.name, isActive: v.isActive },
     });
-    return res.redirect('/ui/positions');
+    return res.redirect('/ui/positions?ok=update');
   }
 
   @Post('positions/:id/toggle')
@@ -1798,7 +1862,7 @@ export class ViewController {
     const id = Number((req.params as any).id);
     const row = await this.prisma.position.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) await this.prisma.position.update({ where: { id }, data: { isActive: !row.isActive } });
-    return res.redirect('/ui/positions');
+    return res.redirect('/ui/positions?ok=toggle');
   }
 
   @Post('positions/:id/delete')
@@ -1814,7 +1878,7 @@ export class ViewController {
       if (used > 0) return res.redirect('/ui/positions?error=err_in_use');
       await this.prisma.position.delete({ where: { id } });
     }
-    return res.redirect('/ui/positions');
+    return res.redirect('/ui/positions?ok=delete');
   }
 
   // work schedules admin UI — details replace-on-save per schedule
@@ -1985,7 +2049,7 @@ export class ViewController {
         },
       },
     });
-    return res.redirect('/ui/schedules');
+    return res.redirect('/ui/schedules?ok=create');
   }
 
   @Post('schedules/:id')
@@ -2032,7 +2096,7 @@ export class ViewController {
         },
       }),
     ]);
-    return res.redirect('/ui/schedules');
+    return res.redirect('/ui/schedules?ok=update');
   }
 
   @Post('schedules/:id/toggle')
@@ -2044,7 +2108,7 @@ export class ViewController {
     const id = Number((req.params as any).id);
     const row = await this.prisma.schedule.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) await this.prisma.schedule.update({ where: { id }, data: { isActive: !row.isActive } });
-    return res.redirect('/ui/schedules');
+    return res.redirect('/ui/schedules?ok=toggle');
   }
 
   @Post('schedules/:id/delete')
@@ -2066,7 +2130,7 @@ export class ViewController {
       }
       await this.prisma.schedule.delete({ where: { id } });
     }
-    return res.redirect('/ui/schedules');
+    return res.redirect('/ui/schedules?ok=delete');
   }
 
   // leave types admin UI — API CRUD lives in masterdata.controller
@@ -2198,7 +2262,7 @@ export class ViewController {
         isActive: v.isActive,
       },
     });
-    return res.redirect('/ui/leave-types');
+    return res.redirect('/ui/leave-types?ok=create');
   }
 
   @Post('leave-types/:id')
@@ -2241,7 +2305,7 @@ export class ViewController {
         isActive: v.isActive,
       },
     });
-    return res.redirect('/ui/leave-types');
+    return res.redirect('/ui/leave-types?ok=update');
   }
 
   @Post('leave-types/:id/toggle')
@@ -2253,7 +2317,7 @@ export class ViewController {
     const id = Number((req.params as any).id);
     const row = await this.prisma.leaveType.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) await this.prisma.leaveType.update({ where: { id }, data: { isActive: !row.isActive } });
-    return res.redirect('/ui/leave-types');
+    return res.redirect('/ui/leave-types?ok=toggle');
   }
 
   @Post('leave-types/:id/delete')
@@ -2271,7 +2335,7 @@ export class ViewController {
       if (used > 0) return res.redirect('/ui/leave-types?error=err_in_use');
       await this.prisma.leaveType.delete({ where: { id } });
     }
-    return res.redirect('/ui/leave-types');
+    return res.redirect('/ui/leave-types?ok=delete');
   }
 
   // holidays admin UI
@@ -2382,7 +2446,7 @@ export class ViewController {
     await this.prisma.holiday.create({
       data: { companyId, date: new Date(`${v.tanggal}T00:00:00.000Z`), name: v.name },
     });
-    return res.redirect('/ui/holidays');
+    return res.redirect('/ui/holidays?ok=create');
   }
 
   @Post('holidays/:id')
@@ -2412,7 +2476,7 @@ export class ViewController {
     });
     if (dup) return this.renderHolidayForm(res, user, this.locale(req), keepOf(body), 'err_date_exists', 400);
     await this.prisma.holiday.update({ where: { id }, data: { date, name: v.name } });
-    return res.redirect('/ui/holidays');
+    return res.redirect('/ui/holidays?ok=update');
   }
 
   @Post('holidays/:id/delete')
@@ -2424,7 +2488,7 @@ export class ViewController {
     const id = Number((req.params as any).id);
     const row = await this.prisma.holiday.findFirst({ where: this.tenantWhere(user, { id }) });
     if (row) await this.prisma.holiday.delete({ where: { id } });
-    return res.redirect('/ui/holidays');
+    return res.redirect('/ui/holidays?ok=delete');
   }
 
   @Get('notifications')
@@ -2547,6 +2611,6 @@ export class ViewController {
     } else {
       await this.prisma.companySetting.create({ data: { companyId, ...data } });
     }
-    return res.redirect(this.settingsBack(companyId, { saved: '1' }));
+    return res.redirect(this.settingsBack(companyId, { saved: '1', ok: 'saved' }));
   }
 }

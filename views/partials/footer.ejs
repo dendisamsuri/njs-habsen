@@ -3,6 +3,7 @@
   </div>
 </div>
 <button class="scrim" id="scrim" aria-label="Tutup menu"></button>
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
 <script>
 (function () {
   var btn = document.getElementById('menuBtn');
@@ -30,6 +31,199 @@
       paintTheme(m);
     });
   });
+
+  function toast(msg, kind) {
+    var wrap = document.getElementById('toastWrap');
+    if (!wrap || !msg) return;
+    var el = document.createElement('div');
+    el.className = 'toast ' + (kind === 'ok' ? 'ok' : 'err');
+    el.textContent = msg;
+    wrap.appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity .25s ease, transform .25s ease';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(-6px)';
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+    }, 3600);
+  }
+
+  // Shared map for redirect flags (?error= / ?ok=) and what the server may pass raw.
+  var msgMap = {
+    id: {
+      COMPANY_REQUIRED: 'Pilih perusahaan terlebih dahulu.',
+      VALIDATION_ERROR: 'Isian tidak valid, periksa kembali.',
+      DUPLICATE: 'Data sudah ada di perusahaan ini.',
+      EMAIL_TAKEN: 'Email sudah digunakan.',
+      NIP_TAKEN: 'NIP sudah digunakan.',
+      PHONE_TAKEN: 'Nomor telepon sudah digunakan.',
+      IN_USE: 'Data masih dipakai, tidak bisa diubah atau dihapus.',
+      EMP_NAME_REQUIRED: 'Nama lengkap wajib diisi.',
+      EMP_EMAIL_REQUIRED: 'Email wajib diisi.',
+      EMP_EMAIL_INVALID: 'Format email tidak valid.',
+      EMP_PASSWORD_SHORT: 'Password minimal 8 karakter.',
+      EMP_POSITION_INVALID: 'Posisi tidak valid atau di luar perusahaan ini.',
+      EMP_LOCATION_INVALID: 'Lokasi tidak valid atau di luar perusahaan ini.',
+      EMP_SCHEDULE_INVALID: 'Jadwal tidak valid atau di luar perusahaan ini.',
+      EMP_LEAD_INVALID: 'Atasan langsung tidak valid atau di luar perusahaan ini.',
+      EMP_DOB_INVALID: 'Tanggal lahir tidak valid (format YYYY-MM-DD).',
+      ENT_USER_REQUIRED: 'Pilih karyawan terlebih dahulu.',
+      ENT_TYPE_REQUIRED: 'Pilih tipe cuti terlebih dahulu.',
+      ENT_YEAR_INVALID: 'Tahun tidak valid.',
+      ENT_VALUE_INVALID: 'Jumlah jatah cuti tidak valid.',
+      ENT_USER_INVALID: 'Karyawan tidak ditemukan di perusahaan ini.',
+      ENT_TYPE_INVALID: 'Tipe cuti tidak ditemukan di perusahaan ini.',
+      ENT_COMPANY_MISMATCH: 'Karyawan dan tipe cuti harus dalam satu perusahaan.',
+      ENT_BELOW_TAKEN: 'Jatah tidak boleh lebih kecil dari cuti yang sudah terpakai.',
+      ENT_HAS_TAKEN: 'Tidak bisa dihapus karena sudah ada cuti yang terpakai.',
+      LEAVE_ALREADY_PROCESSED: 'Pengajuan sudah diproses atau statusnya berubah.',
+      LEAVE_NOT_DIRECT_REPORT: 'Anda bukan atasan langsung karyawan ini.',
+      LEAVE_INVALID_TRANSITION: 'Status pengajuan sudah berubah, muat ulang halaman.',
+      LEAVE_COMMENT_INVALID: 'Komentar penolakan wajib 5–500 karakter.',
+      APPROVAL_SIDE_EFFECT_FAILED: 'Gagal memproses pengajuan, coba lagi.',
+      LEAVE_NOT_FOUND: 'Pengajuan sudah tidak tersedia.',
+      LEAVE_SELF_APPROVAL_DENIED: 'Tidak bisa menyetujui pengajuan sendiri.',
+      LEAVE_INVALID_ACTOR: 'Anda tidak berwenang memutuskan pengajuan ini.',
+      NOT_FOUND: 'Data tidak ditemukan.',
+      NAME_REQUIRED: 'Nama wajib diisi.',
+      NAME_TOO_LONG: 'Nama terlalu panjang.',
+      CODE_INVALID: 'Kode tidak valid (2–30 karakter).',
+      NAME_EXISTS: 'Nama/kode sudah dipakai.',
+      ADDRESS_REQUIRED: 'Alamat lengkap wajib diisi.',
+      ADDRESS_TOO_LONG: 'Alamat maksimal 500 karakter.',
+      LAT_INVALID: 'Latitude tidak valid.',
+      LON_INVALID: 'Longitude tidak valid.',
+      RADIUS_INVALID: 'Radius harus lebih dari 0.',
+      CODE_REQUIRED: 'Kode tidak valid.',
+      err_in_use: 'Data masih dipakai, tidak bisa diubah atau dihapus.',
+      err_name_exists: 'Nama/kode sudah dipakai di perusahaan ini.',
+      err_date_exists: 'Tanggal sudah terdaftar sebagai hari libur.',
+      err_company_required: 'Pilih perusahaan terlebih dahulu.',
+      err_name_required: 'Nama wajib diisi.',
+      err_name_too_long: 'Nama maksimal 120 karakter.',
+      err_code_invalid: 'Kode wajib 2–30 karakter: huruf, angka, titik, strip, underscore.',
+      err_time_invalid: 'Jam harus format HH:MM.',
+      err_tolerance_invalid: 'Toleransi harus 0–600 menit.',
+      err_detail_required: 'Aktifkan minimal satu hari kerja.',
+      err_date_invalid: 'Tanggal harus YYYY-MM-DD dan valid.',
+      err_category_invalid: 'Kategori tipe cuti tidak valid.',
+      err_timezone_invalid: 'Zona waktu tidak valid.',
+      err_save_failed: 'Data tidak berhasil disimpan.',
+      saved: 'Pengaturan tersimpan.',
+      save: 'Berhasil disimpan.',
+      create: 'Berhasil ditambahkan.',
+      update: 'Berhasil diperbarui.',
+      delete: 'Berhasil dihapus.',
+      toggle: 'Status berhasil diubah.',
+      approve: 'Pengajuan disetujui.',
+      reject: 'Pengajuan ditolak.',
+    },
+    en: {
+      COMPANY_REQUIRED: 'Select a company first.',
+      VALIDATION_ERROR: 'Invalid input, please check again.',
+      DUPLICATE: 'Record already exists in this company.',
+      EMAIL_TAKEN: 'Email already in use.',
+      NIP_TAKEN: 'NIP already in use.',
+      PHONE_TAKEN: 'Phone number already in use.',
+      IN_USE: 'Record is still in use, cannot change or delete.',
+      EMP_NAME_REQUIRED: 'Full name is required.',
+      EMP_EMAIL_REQUIRED: 'Email is required.',
+      EMP_EMAIL_INVALID: 'Invalid email format.',
+      EMP_PASSWORD_SHORT: 'Password must be at least 8 characters.',
+      EMP_POSITION_INVALID: 'Position is invalid or outside this company.',
+      EMP_LOCATION_INVALID: 'Location is invalid or outside this company.',
+      EMP_SCHEDULE_INVALID: 'Schedule is invalid or outside this company.',
+      EMP_LEAD_INVALID: 'Direct supervisor is invalid or outside this company.',
+      EMP_DOB_INVALID: 'Invalid date of birth (use YYYY-MM-DD).',
+      ENT_USER_REQUIRED: 'Select an employee first.',
+      ENT_TYPE_REQUIRED: 'Select a leave type first.',
+      ENT_YEAR_INVALID: 'Invalid year.',
+      ENT_VALUE_INVALID: 'Invalid leave entitlement amount.',
+      ENT_USER_INVALID: 'Employee not found in this company.',
+      ENT_TYPE_INVALID: 'Leave type not found in this company.',
+      ENT_COMPANY_MISMATCH: 'Employee and leave type must be in the same company.',
+      ENT_BELOW_TAKEN: 'Entitlement cannot be less than leave already taken.',
+      ENT_HAS_TAKEN: 'Cannot delete because leave has already been taken.',
+      LEAVE_ALREADY_PROCESSED: 'Request already processed or status changed.',
+      LEAVE_NOT_DIRECT_REPORT: 'You are not this employee\u2019s direct supervisor.',
+      LEAVE_INVALID_TRANSITION: 'Request status already changed, reload the page.',
+      LEAVE_COMMENT_INVALID: 'Rejection comment must be 5–500 characters.',
+      APPROVAL_SIDE_EFFECT_FAILED: 'Failed to process the request, try again.',
+      LEAVE_NOT_FOUND: 'Request is no longer available.',
+      LEAVE_SELF_APPROVAL_DENIED: 'Cannot approve your own request.',
+      LEAVE_INVALID_ACTOR: 'You are not authorized to decide this request.',
+      NOT_FOUND: 'Data not found.',
+      NAME_REQUIRED: 'Name is required.',
+      NAME_TOO_LONG: 'Name is too long.',
+      CODE_INVALID: 'Invalid code (2–30 chars).',
+      NAME_EXISTS: 'Name/code already used.',
+      ADDRESS_REQUIRED: 'Full address is required.',
+      ADDRESS_TOO_LONG: 'Address must be at most 500 characters.',
+      LAT_INVALID: 'Invalid latitude.',
+      LON_INVALID: 'Invalid longitude.',
+      RADIUS_INVALID: 'Radius must be greater than 0.',
+      CODE_REQUIRED: 'Invalid code.',
+      err_in_use: 'Record is still in use, cannot change or delete.',
+      err_name_exists: 'Name/code already used in this company.',
+      err_date_exists: 'Date already registered as a holiday.',
+      err_company_required: 'Select a company first.',
+      err_name_required: 'Name is required.',
+      err_name_too_long: 'Name must be at most 120 characters.',
+      err_code_invalid: 'Code must be 2–30 chars: letters, numbers, dot, dash, underscore.',
+      err_time_invalid: 'Time must be in HH:MM format.',
+      err_tolerance_invalid: 'Tolerance must be 0–600 minutes.',
+      err_detail_required: 'Enable at least one working day.',
+      err_date_invalid: 'Date must be a valid YYYY-MM-DD date.',
+      err_category_invalid: 'Invalid leave category.',
+      err_timezone_invalid: 'Invalid timezone.',
+      err_save_failed: 'Failed to save record.',
+      saved: 'Settings saved.',
+      save: 'Saved successfully.',
+      create: 'Added successfully.',
+      update: 'Updated successfully.',
+      delete: 'Deleted successfully.',
+      toggle: 'Status changed.',
+      approve: 'Request approved.',
+      reject: 'Request rejected.',
+    },
+  };
+  var localeKey = (typeof locale !== 'undefined' && msgMap[locale]) ? locale : 'id';
+  var dict = msgMap[localeKey];
+
+  var params = new URLSearchParams(window.location.search);
+  var flagErr = params.get('error');
+  var flagDetail = params.get('detail');
+  var flagOk = params.get('ok') || (params.get('saved') === '1' ? 'saved' : null);
+  var fired = false;
+
+  if (flagErr) {
+    var errMsg = dict[flagErr] || flagErr;
+    if (flagDetail) errMsg += ' — ' + flagDetail;
+    toast(errMsg, 'err');
+    fired = true;
+  }
+  if (flagOk) {
+    toast(dict[flagOk] || flagOk, 'ok');
+    fired = true;
+  }
+  // One-shot flags: strip from URL so refresh does not re-fire the popup.
+  if (fired) {
+    try {
+      var cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('ok');
+      cleanUrl.searchParams.delete('error');
+      cleanUrl.searchParams.delete('detail');
+      cleanUrl.searchParams.delete('saved');
+      var cleanQs = cleanUrl.searchParams.toString();
+      window.history.replaceState(null, '', cleanUrl.pathname + (cleanQs ? '?' + cleanQs : '') + cleanUrl.hash);
+    } catch (e) {}
+  }
+  // Fall back to inline alerts (form re-renders, settings success) when no flag fired.
+  if (!fired) {
+    var okAlert = document.querySelector('.alert.ok');
+    if (okAlert) toast(okAlert.textContent.trim(), 'ok');
+    var errAlert = document.querySelector('.alert.error');
+    if (errAlert) toast(errAlert.textContent.trim(), 'err');
+  }
 })();
 </script>
 </body>

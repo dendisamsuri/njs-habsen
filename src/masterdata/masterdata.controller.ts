@@ -80,6 +80,7 @@ class EmployeeDto {
   @IsEmail() email!: string;
   @IsString() @IsNotEmpty() nama_lengkap!: string;
   @IsOptional() @IsString() nip?: string;
+  @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() password?: string;
   @IsOptional() @IsIn(['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'] as any) role?: any;
   @IsOptional() @IsInt() position_id?: number;
@@ -164,13 +165,24 @@ export class MasterdataController {
     // email unique globally — lookup must stay unscoped
     const existing = await this.prisma.user.findFirst({ where: { email } });
     if (existing) throw err('EMAIL_TAKEN', 409);
+    const nip = dto.nip ? dto.nip.trim() : null;
+    if (nip) {
+      const dupNip = await this.prisma.user.findFirst({ where: { companyId, nip } });
+      if (dupNip) throw err('NIP_TAKEN', 409);
+    }
+    const phone = dto.phone ? dto.phone.trim() : null;
+    if (phone) {
+      const dupPhone = await this.prisma.user.findFirst({ where: { companyId, phone } });
+      if (dupPhone) throw err('PHONE_TAKEN', 409);
+    }
     await assertEmployeeRefs(this.c(), companyId, dto);
     return this.c().user.create({
       data: {
         companyId,
         email,
         namaLengkap: dto.nama_lengkap.trim(),
-        nip: dto.nip,
+        nip,
+        phone,
         passwordHash: await bcrypt.hash(dto.password, 12),
         role: dto.role ?? 'EMPLOYEE',
         positionId: dto.position_id,
@@ -192,11 +204,22 @@ export class MasterdataController {
       const dup = await this.prisma.user.findFirst({ where: { email, NOT: { id } } });
       if (dup) throw err('EMAIL_TAKEN', 409);
     }
+    const nextNip = dto.nip !== undefined ? (dto.nip ? dto.nip.trim() : null) : undefined;
+    if (nextNip !== undefined && nextNip !== row.nip && nextNip !== null) {
+      const dupNip = await this.prisma.user.findFirst({ where: { companyId: this.cid(req), nip: nextNip, NOT: { id } } });
+      if (dupNip) throw err('NIP_TAKEN', 409);
+    }
+    const nextPhone = dto.phone !== undefined ? (dto.phone ? dto.phone.trim() : null) : undefined;
+    if (nextPhone !== undefined && nextPhone !== row.phone && nextPhone !== null) {
+      const dupPhone = await this.prisma.user.findFirst({ where: { companyId: this.cid(req), phone: nextPhone, NOT: { id } } });
+      if (dupPhone) throw err('PHONE_TAKEN', 409);
+    }
     await assertEmployeeRefs(this.c(), this.cid(req), dto);
     const data: any = {};
     if (dto.email !== undefined) data.email = dto.email.toLowerCase().trim();
     if (dto.nama_lengkap !== undefined) data.namaLengkap = dto.nama_lengkap.trim();
-    if (dto.nip !== undefined) data.nip = dto.nip;
+    if (dto.nip !== undefined) data.nip = nextNip;
+    if (dto.phone !== undefined) data.phone = nextPhone;
     if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 12);
     if (dto.role !== undefined) data.role = dto.role;
     if (dto.position_id !== undefined) data.positionId = dto.position_id;
