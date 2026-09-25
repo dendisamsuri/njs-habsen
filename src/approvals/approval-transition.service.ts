@@ -316,8 +316,16 @@ export class ApprovalTransitionService {
 
     let records: any[] = [];
     if (!params.type || params.type === 'cuti' || params.type === 'izin') {
+      const whereLeaveFiltered: any = {
+        ...whereLeave,
+        ...(params.type === 'cuti'
+          ? { leaveType: { category: 'LEAVE' } }
+          : params.type === 'izin'
+            ? { leaveType: { category: { in: ['PERMIT', 'SICK'] } } }
+            : {}),
+      };
       const rows = await c.leaveRequest.findMany({
-        where: whereLeave,
+        where: whereLeaveFiltered,
         include: { leaveType: true, user: { select: { id: true, namaLengkap: true } } },
         orderBy: { createdAt: 'desc' },
       });
