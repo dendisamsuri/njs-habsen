@@ -75,6 +75,8 @@ function tr(key: string, locale: string): string {
     login_title: { id: 'Login Admin Absensi', en: 'Attendance Admin Login' },
     email: { id: 'Email', en: 'Email' },
     password: { id: 'Password', en: 'Password' },
+    show_password: { id: 'Tampilkan password', en: 'Show password' },
+    hide_password: { id: 'Sembunyikan password', en: 'Hide password' },
     sign_in: { id: 'Masuk', en: 'Sign in' },
     today: { id: 'Hari ini', en: 'Today' },
     empty: { id: 'Tidak ada data', en: 'No data' },
