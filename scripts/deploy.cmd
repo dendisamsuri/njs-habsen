@@ -10,7 +10,9 @@ tar -czf "%TAR%" --exclude node_modules --exclude dist --exclude .git --exclude 
 if errorlevel 1 exit /b 1
 
 echo ==^> Upload
-scp -q "%TAR%" %HOST%:/tmp/njs-habsen-deploy.tar.gz
+REM scp -O: server sshd has no sftp subsystem, force legacy scp protocol
+scp -O -q "%TAR%" %HOST%:/tmp/njs-habsen-deploy.tar.gz
+if errorlevel 1 exit /b 1
 
 echo ==^> Extract + build + up
 ssh %HOST% "set -e; mkdir -p %REMOTE_DIR%; tar -xzf /tmp/njs-habsen-deploy.tar.gz -C %REMOTE_DIR%; cd %REMOTE_DIR%; test -f .env || cp .env.example .env; docker compose -f docker-compose.prod.yml build app face; docker compose -f docker-compose.prod.yml up -d mysql face; sleep 5; docker compose -f docker-compose.prod.yml up -d app; sleep 6"

@@ -3,6 +3,8 @@
 set -euo pipefail
 HOST="${HOST:-ubuntu}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/njs-habsen}"
+# server's sshd has no sftp subsystem; -O forces the legacy scp protocol. Override with SCP_OPTS=''
+SCP_OPTS="${SCP_OPTS--O}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAR="${TMPDIR:-/tmp}/njs-habsen-deploy.tar.gz"
 
@@ -13,7 +15,7 @@ tar -czf "$TAR" \
   -C "$ROOT" .
 
 echo "==> upload"
-scp -q "$TAR" "$HOST:/tmp/njs-habsen-deploy.tar.gz"
+scp -q $SCP_OPTS "$TAR" "$HOST:/tmp/njs-habsen-deploy.tar.gz"
 
 echo "==> extract + build + up"
 ssh "$HOST" "set -e
