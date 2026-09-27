@@ -237,6 +237,33 @@
   var localeKey = (typeof locale !== 'undefined' && msgMap[locale]) ? locale : 'id';
   var dict = msgMap[localeKey];
 
+  // The native date control paints its value in the browser's locale, so the visible
+  // layer prints the raw yyyy-mm-dd and opens the picker from a native input parked off-screen.
+  var DATE_KEYS = ['Tab', 'Escape', 'Enter', ' ', 'ArrowDown', 'F4'];
+  document.querySelectorAll('[data-date-field]').forEach(function (field) {
+    var input = field.querySelector('.date-native');
+    var show = field.querySelector('[data-date-show]');
+    var shell = field.querySelector('.date-show');
+    if (!input || !show) return;
+    function paint() {
+      show.textContent = input.value || 'yyyy-mm-dd';
+      shell.classList.toggle('is-empty', !input.value);
+    }
+    // A native input only opens its picker on the calendar icon, so trigger it ourselves.
+    shell.addEventListener('click', function () {
+      try { input.showPicker(); } catch (e) {}
+    });
+    input.addEventListener('change', paint);
+    input.addEventListener('input', paint);
+    // Entry is picker-only; keep the keys that navigate and open the popup.
+    input.addEventListener('keydown', function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (DATE_KEYS.indexOf(e.key) !== -1) return;
+      e.preventDefault();
+    });
+    paint();
+  });
+
   var params = new URLSearchParams(window.location.search);
   var flagErr = params.get('error');
   var flagDetail = params.get('detail');

@@ -97,7 +97,11 @@
         <input type="text" name="place_of_birth" maxlength="40" value="<%= row && row.placeOfBirth ? row.placeOfBirth : '' %>" />
       </div>
       <div class="field"><%= t('tanggal_lahir') %>
-        <input type="date" name="date_of_birth" value="<%= row && row.dateOfBirth ? row.dateOfBirth.toISOString().slice(0, 10) : '' %>" />
+        <% const _dob = row && row.dateOfBirth ? row.dateOfBirth.toISOString().slice(0, 10) : ''; %>
+        <span class="date-field" data-date-field>
+          <span class="date-show<%= _dob ? '' : ' is-empty' %>" aria-hidden="true"><span data-date-show><%= _dob || 'yyyy-mm-dd' %></span><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-calendar"></use></svg></span>
+          <input type="date" class="date-native" name="date_of_birth" value="<%= _dob %>" aria-label="<%= t('tanggal_lahir') %>" />
+        </span>
       </div>
       <div class="field"><%= t('jenis_kelamin') %>
         <select name="gender">

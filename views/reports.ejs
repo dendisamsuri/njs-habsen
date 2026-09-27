@@ -15,7 +15,10 @@
 </div>
 <div class="card">
   <form method="get" action="/ui/reports" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
-    <div class="field"><%= t('date') %><input type="date" name="tanggal" value="<%= today %>" /></div>
+    <div class="field"><%= t('date') %><span class="date-field" data-date-field>
+      <span class="date-show" aria-hidden="true"><span data-date-show><%= today %></span><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-calendar"></use></svg></span>
+      <input type="date" class="date-native" name="tanggal" value="<%= today %>" aria-label="<%= t('date') %>" />
+    </span></div>
     <button class="btn primary" type="submit">OK</button>
   </form>
   <% if (!rws.length) { %><div class="empty"><%= t('empty_reports') %></div><% } else { %>

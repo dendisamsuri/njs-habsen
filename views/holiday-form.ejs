@@ -32,7 +32,11 @@
       </div>
       <% } %>
       <div class="field full"><span class="field-label"><%= t('date') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-holiday-date"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-holiday-date"><%= t('holiday_date_help') %></span></span></span>
-        <input type="date" name="tanggal" required value="<%= row && row.tanggal ? row.tanggal : '' %>" />
+        <% const _tgl = row && row.tanggal ? row.tanggal : ''; %>
+        <span class="date-field" data-date-field>
+          <span class="date-show<%= _tgl ? '' : ' is-empty' %>" aria-hidden="true"><span data-date-show><%= _tgl || 'yyyy-mm-dd' %></span><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-calendar"></use></svg></span>
+          <input type="date" class="date-native" name="tanggal" required value="<%= _tgl %>" aria-label="<%= t('date') %>" />
+        </span>
       </div>
       <div class="field full"><%= t('name') %>
         <input name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" />

@@ -66,7 +66,11 @@
         <% } %>
       </div>
       <div class="field full"><span class="field-label"><%= t('ro_original_date') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-date"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-date"><%= t('ro_draft_help') %></span></span></span>
-        <input type="date" name="original_date" required value="<%= row.original_date %>" />
+        <% const _orig = row.original_date || ''; %>
+        <span class="date-field" data-date-field>
+          <span class="date-show<%= _orig ? '' : ' is-empty' %>" aria-hidden="true"><span data-date-show><%= _orig || 'yyyy-mm-dd' %></span><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-calendar"></use></svg></span>
+          <input type="date" class="date-native" name="original_date" required value="<%= _orig %>" aria-label="<%= t('ro_original_date') %>" />
+        </span>
       </div>
       <div class="field"><span class="field-label"><%= t('ro_half_day') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-half"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-half"><%= t('ro_half_day_help') %></span></span></span>
         <label class="check">
