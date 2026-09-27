@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../prisma/prisma.module';
-import { err } from '../common/exceptions';
+import { err, logServerError } from '../common/exceptions';
 import { todayIso, dayOfWeek, isValidIsoDate } from '../common/time.util';
 import { UsersService } from '../users/users.service';
 
@@ -747,8 +747,7 @@ export class ReportsService {
       });
     } catch (e: any) {
       if (e?.errorCode) throw e;
-      // eslint-disable-next-line no-console
-      console.error(e);
+      logServerError('attendance_correct', e);
       throw err('SERVER_ERROR', 500);
     }
   }

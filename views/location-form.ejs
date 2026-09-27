@@ -35,7 +35,7 @@
   @media (max-width: 900px) { #MapLocation { height: 340px !important; } }
   @media (max-width: 640px) { .seg { flex-direction: column; } }
 </style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
 <div class="page-head">
   <div>
     <h1><%= row ? t('edit') : t('add') %> — <%= t('nav_locations') %></h1>
@@ -94,7 +94,7 @@
     <div class="help"><%= t('map_pick') %></div>
   </div>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script>
 (function () {
   document.querySelectorAll('input[name="status"]').forEach(function (r) {

@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Injectable, Param, ParseIntPipe, Post,
 import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { RequestContextService } from '../common/request-context';
-import { err } from '../common/exceptions';
+import { err, logServerError } from '../common/exceptions';
 import { t } from '../i18n/messages';
 
 class CreateNotificationDto {
@@ -141,7 +141,7 @@ export class NotificationWriter {
       });
     } catch (e) {
       // notifications never break main flow
-      console.error('notification write failed', e);
+      logServerError('notification_write', e);
     }
   }
 
@@ -175,7 +175,7 @@ export class NotificationWriter {
           },
         });
       } catch (e) {
-        console.error('notification write failed', e);
+        logServerError('notification_write_role', e);
       }
     }
   }
@@ -196,7 +196,7 @@ export class NotificationWriter {
         await this.notifyUser({ ...payload, userId: user.directLeadId, eventKey: `${payload.eventKey}:lead` });
       }
     } catch (e) {
-      console.error('notification write failed', e);
+      logServerError('notification_write_lead', e);
     }
   }
 }

@@ -7,12 +7,43 @@ import { join } from 'path';
 import { AppModule } from './app.module';
 import { resolveLocale } from './i18n/messages';
 
+function corsOrigins(): string[] {
+  const raw = process.env.CORS_ORIGINS ?? 'http://localhost:3000';
+  const list = raw
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (list.length === 0) throw new Error('CORS_ORIGINS has no usable origin');
+  for (const origin of list) {
+    if (!/^https?:\/\/[^/\s]+$/.test(origin)) {
+      throw new Error(`CORS_ORIGINS entry is not an http(s) origin: ${origin}`);
+    }
+  }
+  return list;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  // helmet default 'no-referrer' hides our origin from cross-site assets (OSM tiles return 403 without it).
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      // 'unsafe-inline' is unavoidable while the admin EJS pages carry inline script blocks.
+      // What CSP buys here: no third-party script origin, no framing, no base-tag hijack.
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          'script-src': ["'self'", "'unsafe-inline'"],
+          'style-src': ["'self'", "'unsafe-inline'"],
+          'img-src': ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org'],
+          'font-src': ["'self'", 'data:'],
+          'object-src': ["'none'"],
+          'base-uri': ["'self'"],
+          'frame-ancestors': ["'none'"],
+          'form-action': ["'self'"],
+          // Rewrites the dev server's own http:// URLs, so it only belongs in production.
+          'upgrade-insecure-requests': process.env.NODE_ENV === 'production' ? [] : null,
+        },
+      },
+      // helmet's default 'no-referrer' hides our origin from cross-site assets (OSM tiles return 403 without it).
       crossOriginResourcePolicy: false,
       referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }),
@@ -23,18 +54,16 @@ async function bootstrap() {
     req.locale = resolveLocale(req.headers['accept-language']);
     next();
   });
-  app.enableCors({
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
-    credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
-  });
+  app.enableCors({ origin: corsOrigins(), credentials: true, methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'] });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
   app.setGlobalPrefix('api/v1', { exclude: ['ui', 'ui/(.*)', 'health'] });
   app.setViewEngine('ejs');
   app.setBaseViewsDir(join(process.cwd(), 'views'));
+  // One proxy hop (cloudflared) and the app binds loopback only, so req.ip is the real client.
+  app.set('trust proxy', 1);
+  app.useStaticAssets(join(process.cwd(), 'views', 'vendor'), { prefix: '/vendor/' });
   // uploads/ is deliberately not served statically — attendance selfies, face masters and
   // leave attachments are PII. Every read goes through a controller that checks the requester.
 

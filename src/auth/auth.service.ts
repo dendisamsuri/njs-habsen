@@ -7,6 +7,9 @@ import { ThrottleService } from './throttle.service';
 import { err } from '../common/exceptions';
 import { AccessTokenPayload } from '../common/jwt-auth.guard';
 
+export const DUMMY_PASSWORD_HASH =
+  '$2b$12$0IM37IyGbjPyiZhup6bE.uuLfdcPD5xybw.6GPTWfECnTajvbeujO';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -20,7 +23,9 @@ export class AuthService {
   }
 
   private refreshSecret(): string {
-    return process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'change-me-refresh-secret';
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!secret) throw err('SERVER_ERROR', 500);
+    return secret;
   }
 
   private refreshTtl() {
@@ -34,15 +39,12 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({
       where: { email: email.toLowerCase().trim(), deletedAt: null },
     });
-    if (!user || !user.isActive) {
-      this.throttle.recordFailure(email, ip);
-      await this.prisma.loginAttempt.create({
-        data: { email: email.toLowerCase().trim(), ip, success: false },
-      });
-      throw err('INVALID_CREDENTIALS', 401);
-    }
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
+    // Unknown email still pays a bcrypt round so response time cannot enumerate accounts.
+    const ok = await bcrypt.compare(
+      password,
+      user && user.isActive ? user.passwordHash : DUMMY_PASSWORD_HASH,
+    );
+    if (!user || !user.isActive || !ok) {
       this.throttle.recordFailure(email, ip);
       await this.prisma.loginAttempt.create({
         data: { email: email.toLowerCase().trim(), ip, success: false },

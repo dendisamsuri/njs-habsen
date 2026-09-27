@@ -17,6 +17,18 @@ export function err(errorCode: string, status = 400, meta?: Record<string, unkno
   return new AppException(errorCode, status, undefined, meta);
 }
 
+// Prisma errors carry the failed query and its bound values (emails, names, GPS), so the
+// full error only reaches the log when LOG_ERROR_STACKS is explicitly turned on.
+export function logServerError(scope: string, error: unknown): void {
+  if (process.env.LOG_ERROR_STACKS === '1') {
+    // eslint-disable-next-line no-console
+    console.error(`[${scope}]`, error);
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[${scope}] ${error instanceof Error ? error.name : 'unknown'}`);
+  }
+}
+
 const HTTP_CODE_MAP: Record<number, string> = {
   400: 'VALIDATION_ERROR',
   401: 'UNAUTHORIZED',
@@ -65,8 +77,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // never leak stack/SQL
       message = undefined;
       errorCode = 'SERVER_ERROR';
-      // eslint-disable-next-line no-console
-      console.error(exception);
+      logServerError('http', exception);
     }
 
     if (status < 500 && errorCode === 'SERVER_ERROR' && message) {

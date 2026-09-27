@@ -6,6 +6,6 @@ import { ThrottleService } from './throttle.service';
 @Module({
   controllers: [AuthController],
   providers: [AuthService, ThrottleService],
-  exports: [AuthService],
+  exports: [AuthService, ThrottleService],
 })
 export class AuthModule {}

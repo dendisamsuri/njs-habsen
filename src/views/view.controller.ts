@@ -16,6 +16,8 @@ import { Public } from '../common/jwt-auth.guard';
 import { ReportsService } from '../reports/reports.service';
 import { ApprovalTransitionService } from '../approvals/approval-transition.service';
 import { ReplacementOffService } from '../replacement-off/replacement-off.service';
+import { ThrottleService } from '../auth/throttle.service';
+import { DUMMY_PASSWORD_HASH } from '../auth/auth.service';
 import { resolveLocale, t } from '../i18n/messages';
 import { err } from '../common/exceptions';
 import { assertEmployeeRefs } from '../common/employee-refs';
@@ -325,6 +327,7 @@ export class ViewController {
     private readonly reports: ReportsService,
     private readonly approvals: ApprovalTransitionService,
     private readonly replacementOffs: ReplacementOffService,
+    private readonly throttle: ThrottleService,
   ) {}
 
   private locale(req: Request): string {
@@ -397,18 +400,33 @@ export class ViewController {
     const locale = this.locale(req);
     const email = String(body?.email ?? '').toLowerCase().trim();
     const password = String(body?.password ?? '');
+    const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
     const fail = (code: number, msg: string) =>
       res.status(code).render('login', { ...this.helpers(locale), error: msg });
     if (!email || !password) {
       return fail(400, locale === 'en' ? 'Email and password required' : 'Email dan password harus diisi');
     }
+    if (this.throttle.isBlocked(email, ip) > 0) {
+      return fail(429, locale === 'en' ? 'Too many attempts. Try again later.' : 'Terlalu banyak percobaan. Coba lagi nanti.');
+    }
+    const record = (success: boolean) =>
+      this.prisma.loginAttempt.create({ data: { email, ip, success } }).catch(() => undefined);
     const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null } });
-    if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
+    const ok = await bcrypt.compare(
+      password,
+      user && user.isActive ? user.passwordHash : DUMMY_PASSWORD_HASH,
+    );
+    if (!user || !user.isActive || !ok) {
+      this.throttle.recordFailure(email, ip);
+      await record(false);
       return fail(401, locale === 'en' ? 'Invalid email or password' : 'Email atau password salah');
     }
     if (!['PLATFORM_ADMIN', 'COMPANY_ADMIN', 'SUPERVISOR'].includes(user.role)) {
       return fail(403, locale === 'en' ? 'Access denied' : 'Akses ditolak');
     }
+    this.throttle.clear(email, ip);
+    await record(true);
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const token = await this.jwt.signAsync(
       {
         sub: user.id,
@@ -423,7 +441,7 @@ export class ViewController {
     res.cookie(COOKIE, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.COOKIE_SECURE !== 'false',
       maxAge: Number(process.env.JWT_ACCESS_TTL ?? 3600) * 1000,
     });
     return res.redirect('/ui/dashboard');
@@ -439,7 +457,12 @@ export class ViewController {
   @Get('lang/:lang')
   lang(@Param('lang') lang: string, @Res() res: Response) {
     if (lang !== 'id' && lang !== 'en') throw err('INVALID_LANGUAGE', 400);
-    res.cookie('lang', lang, { httpOnly: false, sameSite: 'lax', maxAge: 365 * 86400000 });
+    res.cookie('lang', lang, {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: process.env.COOKIE_SECURE !== 'false',
+      maxAge: 365 * 86400000,
+    });
     return res.redirect('/ui/login');
   }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TenantPrismaService } from '../prisma/prisma.module';
-import { err } from '../common/exceptions';
+import { err, logServerError } from '../common/exceptions';
 import { NotificationWriter } from '../notifications/notifications.controller';
 import { AttendanceService } from '../attendance/attendance.service';
 import { todayIso, dateRange } from '../common/time.util';
@@ -90,9 +90,9 @@ export class ApprovalTransitionService {
           }
           const cid = row.companyId;
 
-          if (level === 3) {
-            if (owner.id === actor.id) return { error: 'SELF_APPROVAL_DENIED' as const };
-            if (owner.directLeadId !== actor.id) return { error: 'NOT_DIRECT_REPORT' as const };
+          if (owner.id === actor.id) return { error: 'SELF_APPROVAL_DENIED' as const };
+          if (level === 3 && owner.directLeadId !== actor.id) {
+            return { error: 'NOT_DIRECT_REPORT' as const };
           }
 
           const oldStatus = row.status;
@@ -244,8 +244,7 @@ export class ApprovalTransitionService {
     } catch (e: any) {
       if (e?.errorCode) throw e;
       if (String(e?.message).includes('UNIQUE')) throw err('ALREADY_PROCESSED_OR_CONFLICT' as any, 409);
-      // eslint-disable-next-line no-console
-      console.error(e);
+      logServerError('approval_transition', e);
       throw err('APPROVAL_SIDE_EFFECT_FAILED', 500);
     }
   }

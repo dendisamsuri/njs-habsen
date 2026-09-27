@@ -9,13 +9,18 @@ interface ThrottleEntry {
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+// Per-IP ceiling, higher than the per-account one, so spraying many emails from one
+// source still burns out while a shared NAT office does not lock out after one typo.
+const MAX_ATTEMPTS_PER_IP = 40;
+const MAX_STORE = 5000;
 
 @Injectable()
 export class ThrottleService {
   private store = new Map<string, ThrottleEntry>();
 
-  private key(email: string, ip: string): string {
-    return `${email.toLowerCase().trim()}|${ip || 'unknown'}`;
+  private key(scope: string, email: string, ip: string): string {
+    if (scope === 'ip') return `ip|${ip || 'unknown'}`;
+    return `acct|${email.toLowerCase().trim()}|${ip || 'unknown'}`;
   }
 
   private get(entry: ThrottleEntry | undefined): ThrottleEntry | undefined {
@@ -28,38 +33,41 @@ export class ThrottleService {
   }
 
   isBlocked(email: string, ip: string): number {
-    const entry = this.get(this.store.get(this.key(email, ip)));
-    if (!entry) return 0;
     const now = Date.now();
-    if (entry.blockedUntil > now) {
-      return Math.ceil((entry.blockedUntil - now) / 1000);
+    let blocked = 0;
+    for (const scope of ['acct', 'ip']) {
+      const entry = this.get(this.store.get(this.key(scope, email, ip)));
+      if (entry && entry.blockedUntil > now) {
+        blocked = Math.max(blocked, Math.ceil((entry.blockedUntil - now) / 1000));
+      }
     }
-    return 0;
+    return blocked;
   }
 
-  recordFailure(email: string, ip: string): void {
-    const k = this.key(email, ip);
+  private bump(scope: string, email: string, ip: string, max: number): void {
+    const k = this.key(scope, email, ip);
     const now = Date.now();
-    let entry = this.get(this.store.get(k));
-    if (!entry) {
-      entry = { windowStart: now, attempts: 0, blockedUntil: 0 };
-    }
+    const entry = this.get(this.store.get(k)) ?? { windowStart: now, attempts: 0, blockedUntil: 0 };
     entry.attempts += 1;
-    if (entry.attempts >= MAX_ATTEMPTS) {
-      const step = Math.min(5, entry.attempts - MAX_ATTEMPTS);
+    if (entry.attempts >= max) {
+      const step = Math.min(5, entry.attempts - max);
       const blockSec = Math.min(900, 30 * (1 << step));
       entry.blockedUntil = now + blockSec * 1000;
       entry.windowStart = now;
     }
     this.store.set(k, entry);
-    // eviction bound
-    if (this.store.size > 5000) {
+  }
+
+  recordFailure(email: string, ip: string): void {
+    this.bump('acct', email, ip, MAX_ATTEMPTS);
+    this.bump('ip', email, ip, MAX_ATTEMPTS_PER_IP);
+    if (this.store.size > MAX_STORE) {
       const oldest = this.store.keys().next().value;
       if (oldest) this.store.delete(oldest);
     }
   }
 
   clear(email: string, ip: string): void {
-    this.store.delete(this.key(email, ip));
+    this.store.delete(this.key('acct', email, ip));
   }
 }

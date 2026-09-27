@@ -10,7 +10,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, Max, MaxLength, IsIn } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, MinLength, Max, MaxLength, IsIn } from 'class-validator';
 import { Roles } from '../common/roles.guard';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
@@ -81,7 +81,7 @@ class EmployeeDto {
   @IsString() @IsNotEmpty() nama_lengkap!: string;
   @IsOptional() @IsString() nip?: string;
   @IsOptional() @IsString() phone?: string;
-  @IsOptional() @IsString() password?: string;
+  @IsOptional() @IsString() @MinLength(8) password?: string;
   @IsOptional() @IsIn(['EMPLOYEE', 'SUPERVISOR', 'COMPANY_ADMIN'] as any) role?: any;
   @IsOptional() @IsInt() position_id?: number;
   @IsOptional() @IsInt() location_id?: number;
