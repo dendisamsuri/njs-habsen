@@ -30,7 +30,7 @@ const NAV = [
   { href: '/ui/reports', key: 'nav_reports' },
   { href: '/ui/approvals', key: 'nav_approvals' },
   { href: '/ui/approvals/leaves', key: 'nav_apv_leaves' },
-  { href: '/ui/approvals/permission', key: 'nav_apv_permission' },
+  { href: '/ui/approvals/permit', key: 'nav_apv_permit' },
   { href: '/ui/approvals/replacement-off', key: 'nav_apv_replacement' },
   { href: '/ui/leaves', key: 'nav_leaves' },
   { href: '/ui/users', key: 'nav_users' },
@@ -53,7 +53,7 @@ function tr(key: string, locale: string): string {
     nav_reports: { id: 'Laporan', en: 'Reports' },
     nav_approvals: { id: 'Persetujuan', en: 'Approvals' },
     nav_apv_leaves: { id: 'Cuti', en: 'Leaves' },
-    nav_apv_permission: { id: 'Izin', en: 'Permission' },
+    nav_apv_permit: { id: 'Izin', en: 'Permit' },
     nav_apv_replacement: { id: 'Replacement Off', en: 'Replacement Off' },
     nav_leaves: { id: 'Cuti', en: 'Leaves' },
     nav_users: { id: 'Karyawan', en: 'Employees' },
@@ -922,9 +922,9 @@ export class ViewController {
     return this.approvalsPage(req, res, 'leave');
   }
 
-  @Get('approvals/permission')
-  async approvalsPermissionPage(@Req() req: Request, @Res() res: Response) {
-    return this.approvalsPage(req, res, 'permission');
+  @Get('approvals/permit')
+  async approvalsPermitPage(@Req() req: Request, @Res() res: Response) {
+    return this.approvalsPage(req, res, 'permit');
   }
 
   @Get('approvals/replacement-off')
@@ -932,7 +932,7 @@ export class ViewController {
     return this.approvalsPage(req, res, 'replacement');
   }
 
-  private async approvalsPage(req: Request, res: Response, kind: 'leave' | 'permission' | 'replacement') {
+  private async approvalsPage(req: Request, res: Response, kind: 'leave' | 'permit' | 'replacement') {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const locale = this.locale(req);
@@ -990,7 +990,7 @@ export class ViewController {
         reason: r.reason,
       }));
     }
-    const slug = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    const slug = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
     return res.render('approvals', {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
@@ -1007,11 +1007,11 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const id = Number((req.params as any).id);
-    const kind = ['leave', 'permission', 'replacement'].includes(body?.kind) ? body.kind : 'leave';
+    const kind = ['leave', 'permit', 'replacement'].includes(body?.kind) ? body.kind : 'leave';
     const decision = body?.decision === 'rejected' ? 'rejected' : 'approved';
     const comment =
       String(body?.comment ?? '') || (decision === 'rejected' ? 'Ditolak via dashboard' : '');
-    const slugBack = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    const slugBack = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
     try {
       await this.approvals.transition(
         kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',
@@ -1034,7 +1034,7 @@ export class ViewController {
       ];
       return res.redirect(`/ui/approvals/${slugBack}?error=${known.includes(code) ? code : 'APPROVAL_SIDE_EFFECT_FAILED'}`);
     }
-    const slug = kind === 'leave' ? 'leaves' : kind === 'permission' ? 'permission' : 'replacement-off';
+    const slug = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
     return res.redirect(`/ui/approvals/${slug}?ok=${decision === 'rejected' ? 'reject' : 'approve'}`);
   }
 
