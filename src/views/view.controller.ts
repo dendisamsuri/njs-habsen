@@ -15,6 +15,7 @@ import { TenantPrismaService } from '../prisma/prisma.module';
 import { Public } from '../common/jwt-auth.guard';
 import { ReportsService } from '../reports/reports.service';
 import { ApprovalTransitionService } from '../approvals/approval-transition.service';
+import { ReplacementOffService } from '../replacement-off/replacement-off.service';
 import { resolveLocale, t } from '../i18n/messages';
 import { err } from '../common/exceptions';
 import { assertEmployeeRefs } from '../common/employee-refs';
@@ -196,6 +197,31 @@ function tr(key: string, locale: string): string {
     },
     empty_users: { id: 'Belum ada karyawan terdaftar di perusahaan ini.', en: 'No employees registered in this company.' },
     empty_leaves: { id: 'Belum ada pengajuan cuti atau izin.', en: 'No leave or permit requests yet.' },
+    ro_original_date: { id: 'Tanggal Asli', en: 'Original Date' },
+    ro_off_type: { id: 'Jenis', en: 'Type' },
+    ro_expiry_days: { id: 'Masa Berlaku (hari)', en: 'Validity (days)' },
+    ro_expiry_help: {
+      id: 'Kosongkan untuk 30 hari sejak tanggal asli.',
+      en: 'Leave empty for 30 days from the original date.',
+    },
+    ro_schedule_help: {
+      id: 'Kosongkan untuk memakai jadwal kerja karyawan.',
+      en: 'Leave empty to use the employee work schedule.',
+    },
+    ro_draft_help: {
+      id: 'Tersimpan sebagai draft. Pegawai memilih tanggal replacement lalu mengirim pengajuan di aplikasi.',
+      en: 'Saved as draft. The employee picks the replacement date and submits the request in the app.',
+    },
+    ro_created_msg: {
+      id: 'Replacement off disimpan sebagai draft. Pegawai bisa mengajukan di aplikasi.',
+      en: 'Replacement off saved as draft. The employee can request it in the app.',
+    },
+    ro_no_employee: {
+      id: 'Belum ada karyawan aktif dengan izin replacement off di perusahaan ini.',
+      en: 'No active employees with replacement off enabled in this company.',
+    },
+    err_employee_required: { id: 'Pilih karyawan', en: 'Select an employee' },
+    err_expiry_invalid: { id: 'Masa berlaku harus 1–365 hari', en: 'Validity must be 1–365 days' },
     empty_locations: {
       id: 'Belum ada lokasi. Tambah lokasi agar absen berbasis radius bisa dipakai.',
       en: 'No locations yet. Add a location to enable radius-based check-in.',
@@ -298,6 +324,7 @@ export class ViewController {
     private readonly jwt: JwtService,
     private readonly reports: ReportsService,
     private readonly approvals: ApprovalTransitionService,
+    private readonly replacementOffs: ReplacementOffService,
   ) {}
 
   private locale(req: Request): string {
@@ -912,6 +939,113 @@ export class ViewController {
     });
   }
 
+  private requireRoWrite(user: any, res: Response): boolean {
+    if (user.role === 'PLATFORM_ADMIN' || user.role === 'COMPANY_ADMIN') return true;
+    res.redirect('/ui/approvals/replacement-off');
+    return false;
+  }
+
+  private async roFormData(user: any, companyId: number | null, row: any) {
+    return {
+      companies: user.companyId == null ? await this.companyOptions() : null,
+      companyId,
+      employees:
+        companyId == null
+          ? []
+          : await this.prisma.user.findMany({
+              where: { companyId, deletedAt: null, isActive: true, allowReplacementOff: true },
+              orderBy: { namaLengkap: 'asc' },
+              select: { id: true, namaLengkap: true, nip: true },
+            }),
+      schedules:
+        companyId == null
+          ? []
+          : await this.prisma.schedule.findMany({
+              where: { companyId, isActive: true },
+              orderBy: { name: 'asc' },
+              select: { id: true, name: true },
+            }),
+      row,
+    };
+  }
+
+  private roRowOf(src: any, companyId: number | null) {
+    return {
+      companyId: companyId ?? src?.companyId ?? null,
+      user_id: src?.user_id ?? '',
+      original_date: src?.original_date ?? '',
+      schedule_id: src?.schedule_id ?? '',
+      is_half_day: src?.is_half_day === true || src?.is_half_day === 'on',
+      expiry_days: src?.expiry_days ?? '',
+      reason: src?.reason ?? '',
+    };
+  }
+
+  @Get('approvals/replacement-off/new')
+  async replacementOffNewPage(@Req() req: Request, @Res() res: Response) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireRoWrite(user, res)) return res as any;
+    const locale = this.locale(req);
+    const companyId = await this.mdCompanyId(user, { companyId: req.query.companyId });
+    return res.render('replacement-off-form', {
+      ...this.helpers(locale),
+      user: { nama_lengkap: user.namaLengkap, role: user.role },
+      error: null,
+      ...(await this.roFormData(user, companyId, this.roRowOf({ companyId }, companyId))),
+      page: 'approvals/replacement-off',
+    });
+  }
+
+  @Post('approvals/replacement-off/new')
+  @HttpCode(302)
+  async replacementOffCreate(@Req() req: Request, @Res() res: Response, @Body() body: any) {
+    const user = await this.requireUser(req, res);
+    if (!user) return res as any;
+    if (!this.requireRoWrite(user, res)) return res as any;
+    const locale = this.locale(req);
+    const companyId = await this.mdCompanyId(user, body);
+    const render = async (code: string) =>
+      res.status(400).render('replacement-off-form', {
+        ...this.helpers(locale),
+        user: { nama_lengkap: user.namaLengkap, role: user.role },
+        error: tr(code, locale),
+        ...(await this.roFormData(user, companyId, this.roRowOf(body, companyId))),
+        page: 'approvals/replacement-off',
+      });
+
+    if (companyId == null) return render('err_company_required');
+    const userId = Number(body?.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) return render('err_employee_required');
+    const originalDate = String(body?.original_date ?? '').trim();
+    if (!DATE_RE.test(originalDate)) return render('err_date_invalid');
+    const date = new Date(`${originalDate}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== originalDate) return render('err_date_invalid');
+    const expiryRaw = String(body?.expiry_days ?? '').trim();
+    const expiryDays = expiryRaw ? Number(expiryRaw) : undefined;
+    if (expiryDays !== undefined && (!Number.isInteger(expiryDays) || expiryDays < 1 || expiryDays > 365)) {
+      return render('err_expiry_invalid');
+    }
+    const scheduleRaw = String(body?.schedule_id ?? '').trim();
+    try {
+      await this.replacementOffs.adminCreate(
+        companyId,
+        {
+          user_id: userId,
+          original_date: originalDate,
+          is_half_day: body?.is_half_day === 'on',
+          expiry_days: expiryDays,
+          schedule_id: scheduleRaw ? Number(scheduleRaw) : undefined,
+          reason: String(body?.reason ?? '').trim() || undefined,
+        },
+        user.id,
+      );
+    } catch (e: any) {
+      return render(String(e?.errorCode ?? 'err_save_failed'));
+    }
+    return res.redirect('/ui/approvals/replacement-off?ok=create');
+  }
+
   @Get('approvals')
   approvalsIndex(@Res() res: Response) {
     return res.redirect('/ui/approvals/leaves');
@@ -996,6 +1130,8 @@ export class ViewController {
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       rows,
       kind,
+      canAdd: kind === 'replacement' && (user.role === 'PLATFORM_ADMIN' || user.role === 'COMPANY_ADMIN'),
+      created: kind === 'replacement' && req.query.ok === 'create',
       error: req.query.error ? t(String(req.query.error), locale as any) : null,
       page: `approvals/${slug}`,
     });

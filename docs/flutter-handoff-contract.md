@@ -202,6 +202,7 @@ CutiRecord:
 - `has_replacement_date`, `can_submit` → **boolean asli**.
 - `is_half_day`, `is_expired` → boolean asli (toleran `1` tidak wajib lagi).
 - Fitur off untuk user → 403 `REPLACEMENT_NOT_ALLOWED`.
+- Record dibuat oleh **platform admin / company admin** lewat dashboard (`/ui/approvals/replacement-off` → Tambah) dengan `status: "draft"`. App cukup menampilkan draft itu — employees yang memilih `replacement_date` lalu submit.
 
 ### POST /replacement-off/:id/submit
 ```json

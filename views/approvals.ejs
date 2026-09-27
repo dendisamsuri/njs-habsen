@@ -6,10 +6,15 @@
     if(s==='rejected'||s==='cancelled'||s==='expired') return 'red';
     return 'gray'; }
 %>
+<style>
+  .alert.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+</style>
 <div class="page-head">
   <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
+  <% if (canAdd) { %><div class="page-actions"><a class="btn primary" href="/ui/approvals/replacement-off/new"><%= t('add') %></a></div><% } %>
 </div>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
+<% if (typeof created !== 'undefined' && created) { %><div class="alert ok"><%= t('ro_created_msg') %></div><% } %>
 <div class="card">
   <div class="table-toolbar"><b>Antrean persetujuan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
   <% if (!rows.length) { %><div class="empty"><%= t('empty_approvals') %></div><% } else { %>
@@ -32,6 +37,6 @@
       <% }) %>
     </tbody>
   </table></div>
-  <% } %>
+<% } %>
 </div>
 <%- include('partials/footer') %>

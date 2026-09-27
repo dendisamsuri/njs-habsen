@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { resolveLocale } from '../src/i18n/messages';
@@ -382,5 +383,114 @@ describe('API e2e (smoke)', () => {
       })
       .expect(409);
     expect(phoneDup.body.error_code).toBe('PHONE_TAKEN');
+  });
+
+  const RO_MARK = 'e2e-replacement-off';
+  const isoAdd = (days: number): string => {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  itDb('replacement off: admin adds draft → employee sees and submits it', async () => {
+    const db = new PrismaClient();
+    const originalDate = isoAdd(300);
+    const replacementDate = isoAdd(301);
+    const purge = async () => {
+      const stale = await db.replacementOff.findMany({ where: { reason: RO_MARK }, select: { id: true } });
+      const ids = stale.map((r) => r.id);
+      if (ids.length === 0) return;
+      await db.requestApproval.deleteMany({ where: { requestType: 'REPLACEMENT_OFF', requestId: { in: ids } } });
+      await db.replacementOff.deleteMany({ where: { id: { in: ids } } });
+    };
+
+    try {
+      await purge();
+      const adminToken = await loginAs('admin@demo.test');
+      const supToken = await loginAs('supervisor@demo.test');
+      const platformToken = await loginAs('platform@demo.test');
+      const empToken = await loginAs('employee@demo.test');
+
+      const users = await request(app.getHttpServer())
+        .get('/api/v1/admin/users?search=employee@demo.test')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const emp = users.body.data.records.find((u: any) => u.email === 'employee@demo.test');
+      expect(emp).toBeTruthy();
+
+      const payload = { user_id: emp.id, original_date: originalDate, reason: RO_MARK };
+
+      // add is platform/company admin only
+      const asSupervisor = await request(app.getHttpServer())
+        .post('/api/v1/admin/replacement-off')
+        .set('Authorization', `Bearer ${supToken}`)
+        .send(payload)
+        .expect(403);
+      expect(asSupervisor.body.error_code).toBe('FORBIDDEN');
+
+      // platform admin has no company of its own — it must name one
+      const asPlatform = await request(app.getHttpServer())
+        .post('/api/v1/admin/replacement-off')
+        .set('Authorization', `Bearer ${platformToken}`)
+        .send(payload)
+        .expect(400);
+      expect(asPlatform.body.error_code).toBe('COMPANY_REQUIRED');
+
+      const badExpiry = await request(app.getHttpServer())
+        .post('/api/v1/admin/replacement-off')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...payload, expiry_days: 0 })
+        .expect(400);
+      expect(badExpiry.body.error_code).toBe('REPLACEMENT_EXPIRY_INVALID');
+
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/admin/replacement-off')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload)
+        .expect(200);
+      expect(created.body.data.status).toBe('draft');
+      expect(created.body.data.replacement_date).toBeNull();
+      expect(created.body.data.can_submit).toBe(true);
+      expect(created.body.data.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      const id = created.body.data.id;
+
+      // another company must not reach this employee
+      const adminB = await loginAs('admin2@demo.test');
+      const crossTenant = await request(app.getHttpServer())
+        .post('/api/v1/admin/replacement-off')
+        .set('Authorization', `Bearer ${adminB}`)
+        .send(payload)
+        .expect(404);
+      expect(crossTenant.body.error_code).toBe('USER_NOT_FOUND');
+
+      const list = await request(app.getHttpServer())
+        .get('/api/v1/replacement-off?status=draft')
+        .set('Authorization', `Bearer ${empToken}`)
+        .expect(200);
+      const draft = list.body.data.records.find((r: any) => r.id === id);
+      expect(draft).toBeTruthy();
+      expect(draft.can_submit).toBe(true);
+      expect(draft.has_replacement_date).toBe(false);
+
+      const submitted = await request(app.getHttpServer())
+        .post(`/api/v1/replacement-off/${id}/submit`)
+        .set('Authorization', `Bearer ${empToken}`)
+        .send({ id, replacement_date: replacementDate, note: 'e2e' })
+        .expect(200);
+      expect(submitted.body.data.status).toBe('pending');
+      expect(submitted.body.data.replacement_date).toBe(replacementDate);
+      expect(submitted.body.data.can_submit).toBe(false);
+
+      const again = await request(app.getHttpServer())
+        .post(`/api/v1/replacement-off/${id}/submit`)
+        .set('Authorization', `Bearer ${empToken}`)
+        .send({ id, replacement_date: isoAdd(302) })
+        .expect(409);
+      expect(again.body.error_code).toBe('LEAVE_ALREADY_PROCESSED');
+    } finally {
+      await purge();
+      await db.$disconnect();
+    }
   });
 });

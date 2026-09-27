@@ -88,14 +88,13 @@ export class ReplacementOffService {
     return { total: records.length, records };
   }
 
-  async adminListCompany(companyId: number, status?: string, supervisorUserId?: number | null) {
+  /** companyId null = PLATFORM_ADMIN, list every tenant. */
+  async adminListCompany(companyId: number | null, status?: string, supervisorUserId?: number | null) {
     if (status && !STATUS_OK.has(status)) throw err('INVALID_ENUM', 400);
     const c = this.c();
-    const where: any = { companyId, deletedAt: null };
+    const where: any = { deletedAt: null, ...(companyId == null ? {} : { companyId }) };
     if (status) where.status = status as any;
-    if (supervisorUserId) {
-      const { UsersService } = await import('../users/users.service');
-      // inline subtree resolve (avoid DI)
+    if (supervisorUserId && companyId != null) {
       const ids = new Set<number>([supervisorUserId]);
       let frontier = [supervisorUserId];
       for (let d = 0; d < 10 && frontier.length; d++) {
@@ -116,15 +115,19 @@ export class ReplacementOffService {
     const rows = await c.replacementOff.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      take: 200,
       include: {
         schedule: { include: { details: true } },
         user: { select: { id: true, namaLengkap: true } },
+        company: { select: { name: true } },
       },
     });
     const records = rows.map((r: any) => ({
       ...this.toRecord(r),
       user_id: r.userId,
       nama_lengkap: r.user?.namaLengkap ?? null,
+      company_id: r.companyId,
+      company_name: r.company?.name ?? null,
     }));
     return { total: records.length, records };
   }
@@ -213,16 +216,26 @@ export class ReplacementOffService {
       expiry_days?: number;
       schedule_id?: number;
     },
+    createdById?: number | null,
   ) {
     if (!isValidIsoDate(input.original_date)) throw err('INVALID_DATE_FORMAT', 400);
+    if (input.expiry_days != null && (!Number.isInteger(input.expiry_days) || input.expiry_days < 1 || input.expiry_days > 365)) {
+      throw err('REPLACEMENT_EXPIRY_INVALID', 400);
+    }
     const c = this.c();
     const user = await c.user.findFirst({
       where: { id: input.user_id, companyId, deletedAt: null },
       include: { schedule: true },
     });
     if (!user) throw err('USER_NOT_FOUND', 404);
+    // employee-side submit is gated on this flag, so a draft without it can never be actioned
+    if (user.allowReplacementOff !== true) throw err('REPLACEMENT_NOT_ALLOWED', 400);
     const scheduleId = input.schedule_id ?? user.scheduleId;
     if (!scheduleId) throw err('SCHEDULE_NOT_FOUND', 400);
+    if (input.schedule_id) {
+      const schedule = await c.schedule.findFirst({ where: { id: input.schedule_id, companyId }, select: { id: true } });
+      if (!schedule) throw err('SCHEDULE_NOT_FOUND', 400);
+    }
     const conflict = await c.replacementOff.findFirst({
       where: {
         companyId,
@@ -246,7 +259,7 @@ export class ReplacementOffService {
         expiresAt: new Date(expiresAt),
         reason: input.reason ?? null,
         status: 'draft',
-        createdById: null,
+        createdById: createdById ?? null,
       },
       include: { schedule: { include: { details: true } } },
     });

@@ -84,6 +84,7 @@ export const MESSAGES: Record<string, Record<Locale, string>> = {
   REPLACEMENT_NOT_ALLOWED: { id: 'Anda tidak diizinkan mengajukan replacement off', en: 'You are not allowed to request replacement off' },
   REPLACEMENT_INVALID_DATE: { id: 'Tanggal replacement tidak valid', en: 'Invalid replacement date' },
   REPLACEMENT_EXPIRY_FAILED: { id: 'Gagal memproses kedaluwarsa replacement off', en: 'Failed to process replacement off expiry' },
+  REPLACEMENT_EXPIRY_INVALID: { id: 'Masa berlaku pengajuan harus 1–365 hari', en: 'Request validity must be 1–365 days' },
 
   // approvals
   APPROVAL_INVALID_LEVEL: { id: 'Level persetujuan tidak valid', en: 'Invalid approval level' },
