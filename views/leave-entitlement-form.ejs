@@ -2,7 +2,6 @@
 <style>
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input, .field select {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -29,41 +28,48 @@
     <div class="form-sec"><%= t('section_identity') %></div>
     <div class="form-grid">
       <% if (typeof companies !== 'undefined' && companies) { %>
-      <div class="field full"><%= t('company_label') %>
+      <div class="field full"><span class="field-label"><%= t('company_label') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-company"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-company"><%= t('company_first_help') %></span></span></span>
         <select name="companyId" id="companyId" required <%= row ? 'disabled' : '' %>>
           <option value="" <%= companyId ? '' : 'selected' %>>-</option>
           <% companies.forEach(function(c) { %>
             <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
           <% }) %>
         </select>
-        <div class="help"><%= t('company_first_help') %></div>
       </div>
       <% } %>
-      <div class="field full"><%= t('employee') %>
+      <div class="field full">
+        <% if (row) { %>
+        <span class="field-label"><%= t('employee') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-emp"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-emp"><%= t('ent_employee_locked_help') %></span></span></span>
+        <% } else if (!companyId) { %>
+        <span class="field-label"><%= t('employee') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-emp"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-emp"><%= t('company_first_help') %></span></span></span>
+        <% } else { %>
+        <span class="field-label"><%= t('employee') %></span>
+        <% } %>
         <select name="user_id" id="userId" required <%= (row || !companyId) ? 'disabled' : '' %>>
           <option value="">-</option>
           <% employees.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.userId === v.id ? 'selected' : '' %>><%= v.namaLengkap %> (<%= v.email %>)</option><% }) %>
         </select>
-        <% if (row) { %><div class="help">Employee tidak dapat diubah; hapus lalu buat ulang.</div><% } else if (!companyId) { %><div class="help"><%= t('company_first_help') %></div><% } %>
       </div>
-      <div class="field full">Tipe cuti
+      <div class="field full">
+        <% if (row) { %>
+        <span class="field-label">Tipe cuti<span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-type"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-type"><%= t('ent_type_locked_help') %></span></span></span>
+        <% } else { %>
+        <span class="field-label">Tipe cuti</span>
+        <% } %>
         <select name="leave_type_id" required <%= (row || !companyId) ? 'disabled' : '' %>>
           <option value="">-</option>
           <% leaveTypes.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.leaveTypeId === v.id ? 'selected' : '' %>><%= v.name %></option><% }) %>
         </select>
-        <% if (row) { %><div class="help">Hanya tipe cuti aktif yang dapat dipilih.</div><% } %>
       </div>
     </div>
 
     <div class="form-sec blocked">Kuota tahunan</div>
     <div class="form-grid">
-      <div class="field">Tahun
+      <div class="field"><span class="field-label">Tahun<span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-year"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-year"><%= t('ent_year_locked_help') %></span></span></span>
         <input type="number" name="year" min="2000" max="2100" required readonly value="<%= row ? row.year : new Date().getFullYear() %>" />
-        <div class="help">Ditentukan saat pertama dibuat.</div>
       </div>
-      <div class="field">Entitlement
+      <div class="field"><span class="field-label">Entitlement<span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-le-value"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-le-value"><%= t('ent_value_help') %></span></span></span>
         <input type="number" name="entitlement" min="0" step="0.5" required value="<%= row ? Number(row.entitlement) : 0 %>" />
-        <div class="help">Jatah maksimal; tidak boleh kurang dari yang terpakai.</div>
       </div>
     </div>
 

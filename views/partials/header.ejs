@@ -345,6 +345,31 @@
     .form-grid .full { grid-column: 1 / -1; }
     .form-actions { display: flex; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; }
 
+    /* ---------- Field info popover ---------- */
+    .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
+    .field-label { display: flex; align-items: center; gap: .3rem; }
+    .info { position: relative; display: inline-flex; }
+    .ico { width: 15px; height: 15px; display: block; }
+    .info-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; flex: 0 0 auto; padding: 0; margin: -.3rem;
+      border: 0; border-radius: 7px; background: transparent;
+      color: var(--muted); cursor: pointer;
+    }
+    .info-btn:hover { color: var(--label); background: var(--line-soft); }
+    .info-pop {
+      position: absolute; z-index: 20; top: calc(100% + 4px); left: 0;
+      width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+      background: var(--card); color: var(--muted);
+    }
+    .info.on .info-pop {
+      width: max-content; max-width: min(74vw, 264px); height: auto;
+      padding: .45rem .6rem; overflow: visible; clip-path: none; white-space: normal;
+      border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+      font-size: .74rem; font-weight: 400; line-height: 1.5; color: var(--ink);
+    }
+
     .langs { display: none; }
     .meta { color: var(--muted); font-size: .8rem; margin-bottom: .75rem; }
     .foot-note { text-align: center; color: var(--faint); font-size: .74rem; padding: 1.2rem 0 .4rem; }
@@ -381,6 +406,13 @@
   </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="ico-info" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.2"></circle>
+    <path d="M8 7.4v3.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+    <circle cx="8" cy="4.9" r=".85" fill="currentColor"></circle>
+  </symbol>
+</svg>
 <%
   const _page = typeof page !== 'undefined' ? page : 'dashboard';
   const _nav = typeof nav !== 'undefined' ? nav : [];

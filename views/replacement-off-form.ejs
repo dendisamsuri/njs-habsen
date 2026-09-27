@@ -1,6 +1,5 @@
 <%- include('partials/header') %>
 <style>
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input, .field select, .field textarea {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -42,14 +41,13 @@
   <form method="post" action="/ui/approvals/replacement-off/new">
     <div class="form-grid">
       <% if (companies) { %>
-      <div class="field full"><%= t('company_label') %>
+      <div class="field full"><span class="field-label"><%= t('company_label') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-company"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-company"><%= t('company_first_help') %></span></span></span>
         <select name="companyId" id="companyId" required>
           <option value="" <%= companyId ? '' : 'selected' %>>-</option>
           <% companies.forEach(function(c) { %>
             <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
           <% }) %>
         </select>
-        <div class="help"><%= t('company_first_help') %></div>
       </div>
       <% } else { %>
       <input type="hidden" name="companyId" value="<%= companyId %>" />
@@ -67,20 +65,17 @@
         <input type="hidden" name="user_id" value="" />
         <% } %>
       </div>
-      <div class="field full"><%= t('ro_original_date') %>
+      <div class="field full"><span class="field-label"><%= t('ro_original_date') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-date"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-date"><%= t('ro_draft_help') %></span></span></span>
         <input type="date" name="original_date" required value="<%= row.original_date %>" />
-        <div class="help"><%= t('ro_draft_help') %></div>
       </div>
-      <div class="field"><%= t('ro_half_day') %>
+      <div class="field"><span class="field-label"><%= t('ro_half_day') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-half"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-half"><%= t('ro_half_day_help') %></span></span></span>
         <label class="check">
           <input type="checkbox" name="is_half_day" value="on" <%= row.is_half_day ? 'checked' : '' %> />
           <span><%= t('ro_half_day_label') %></span>
         </label>
-        <div class="help"><%= t('ro_half_day_help') %></div>
       </div>
-      <div class="field"><%= t('ro_expiry_days') %>
+      <div class="field"><span class="field-label"><%= t('ro_expiry_days') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-ro-expiry"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-ro-expiry"><%= t('ro_expiry_help') %></span></span></span>
         <input type="number" name="expiry_days" min="1" max="365" step="1" value="<%= row.expiry_days %>" placeholder="30" />
-        <div class="help"><%= t('ro_expiry_help') %></div>
       </div>
       <div class="field full"><%= t('reason') %>
         <textarea name="reason" maxlength="500" rows="3"><%= row.reason %></textarea>

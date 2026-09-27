@@ -3,7 +3,6 @@
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec + .form-grid { margin-bottom: 1.3rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   #name, #code {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -45,14 +44,12 @@
       <div class="form-sec"><%= t('section_identity') %></div>
       <div class="form-grid">
         <div class="field full">
-          <%= t('company_name') %>
+          <span class="field-label"><%= t('company_name') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-name"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-name"><%= t('name_help') %></span></span></span>
           <input id="name" name="name" required maxlength="160" value="<%= row && row.name ? row.name : '' %>" />
-          <div class="help"><%= t('name_help') %></div>
         </div>
         <div class="field full">
-          <%= t('code') %>
+          <span class="field-label"><%= t('code') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-code"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-code"><%= t('code_help') %></span></span></span>
           <input id="code" name="code" maxlength="30" value="<%= row && row.code ? row.code : '' %>" placeholder="<%= t('code_ph') %>" />
-          <div class="help"><%= t('code_help') %></div>
         </div>
       </div>
 

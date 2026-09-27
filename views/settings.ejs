@@ -2,7 +2,6 @@
 <style>
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input[type="text"], .field select {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -55,9 +54,8 @@
 
     <div class="form-sec <%= companies ? 'blocked' : '' %>"><%= t('section_general') %></div>
     <div class="form-grid" style="margin-bottom:1.3rem;">
-      <div class="field full"><%= t('timezone') %>
+      <div class="field full"><span class="field-label"><%= t('timezone') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-timezone"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-timezone"><%= t('timezone_help') %></span></span></span>
         <input type="text" name="timezone" maxlength="64" required value="<%= row.timezone %>" placeholder="Asia/Jakarta" />
-        <div class="help"><%= t('timezone_help') %></div>
       </div>
       <div class="field full"><%= t('mode_absen') %>
         <div class="seg">
@@ -73,7 +71,7 @@
 
     <div class="form-sec blocked"><%= t('section_approval') %></div>
     <div class="form-grid">
-      <div class="field full"><%= t('require_hr_final') %>
+      <div class="field full"><span class="field-label"><%= t('require_hr_final') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-hrfinal"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-hrfinal"><%= t('require_hr_final_help') %></span></span></span>
         <div class="seg">
           <label class="seg-opt <%= row.require_hr_final ? 'on' : '' %>">
             <input type="radio" name="require_hr_final" value="on" <%= row.require_hr_final ? 'checked' : '' %> /><%= t('yes') %>
@@ -82,7 +80,6 @@
             <input type="radio" name="require_hr_final" value="off" <%= !row.require_hr_final ? 'checked' : '' %> /><%= t('no') %>
           </label>
         </div>
-        <div class="help"><%= t('require_hr_final_help') %></div>
       </div>
     </div>
 

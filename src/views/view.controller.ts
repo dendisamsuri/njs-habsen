@@ -313,6 +313,23 @@ function tr(key: string, locale: string): string {
     err_date_invalid: { id: 'Tanggal harus YYYY-MM-DD dan valid', en: 'Date must be a valid YYYY-MM-DD date' },
     err_date_exists: { id: 'Tanggal sudah terdaftar sebagai hari libur', en: 'Date is already registered as a holiday' },
     err_category_invalid: { id: 'Kategori tipe cuti tidak valid', en: 'Invalid leave category' },
+    info_label: { id: 'Informasi', en: 'Information' },
+    ent_employee_locked_help: {
+      id: 'Employee tidak dapat diubah; hapus lalu buat ulang.',
+      en: 'Employee cannot be changed; delete and create a new one.',
+    },
+    ent_type_locked_help: {
+      id: 'Hanya tipe cuti aktif yang dapat dipilih.',
+      en: 'Only active leave types can be selected.',
+    },
+    ent_year_locked_help: {
+      id: 'Ditentukan saat pertama dibuat.',
+      en: 'Set when the record is first created.',
+    },
+    ent_value_help: {
+      id: 'Jatah maksimal; tidak boleh kurang dari yang terpakai.',
+      en: 'Maximum quota; cannot be lower than what is already taken.',
+    },
     err_save_failed: { id: 'Data tidak berhasil disimpan', en: 'Failed to save record' },
   };
   const entry = map[key];

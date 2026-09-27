@@ -2,7 +2,6 @@
 <style>
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input, .field select, .field textarea {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -79,14 +78,13 @@
     <div class="form-sec"><%= t('section_identity') %></div>
     <div class="form-grid">
       <% if (typeof companies !== 'undefined' && companies) { %>
-      <div class="field full"><%= t('company_label') %>
+      <div class="field full"><span class="field-label"><%= t('company_label') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-emp-company"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-emp-company"><%= t('company_first_help') %></span></span></span>
         <select name="companyId" id="companyId" required>
           <option value="" <%= companyId ? '' : 'selected' %>>-</option>
           <% companies.forEach(function(c) { %>
             <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
           <% }) %>
         </select>
-        <div class="help"><%= t('company_first_help') %></div>
       </div>
       <% } %>
       <div class="field full"><%= t('name') %>
@@ -111,9 +109,8 @@
       <div class="field"><%= t('phone_label') %>
         <input type="tel" name="phone" maxlength="32" value="<%= row && row.phone ? row.phone : '' %>" />
       </div>
-      <div class="field">NIP
+      <div class="field"><span class="field-label">NIP<span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-nip"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-nip"><%= t('nip_help') %></span></span></span>
         <input type="text" name="nip" maxlength="64" value="<%= row ? row.nip : '' %>" />
-        <div class="help"><%= t('nip_help') %></div>
       </div>
       <div class="field"><%= t('active_label') %>
         <div class="seg">
@@ -132,9 +129,8 @@
 
     <div class="form-sec blocked"><%= t('section_access') %></div>
     <div class="form-grid">
-      <div class="field full"><%= t('password') %>
+      <div class="field full"><span class="field-label"><%= t('password') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-password"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-password"><%= row ? t('password_keep_help') : t('password_min_help') %></span></span></span>
         <input type="password" name="password" minlength="8" <%= row ? '' : 'required' %> />
-        <div class="help"><%= row ? t('password_keep_help') : t('password_min_help') %></div>
       </div>
       <div class="field"><%= t('role') %>
         <select name="role">
@@ -150,7 +146,7 @@
       <div class="field"><%= t('direct_lead_label') %>
         <select name="direct_lead_id"><option value="">-</option><% leads.forEach(function(v) { %><option value="<%= v.id %>" <%= row && row.directLeadId === v.id ? 'selected' : '' %>><%= v.namaLengkap %></option><% }) %></select>
       </div>
-      <div class="field full"><%= t('schedule_label') %>
+      <div class="field full"><span class="field-label"><%= t('schedule_label') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-schedules"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-schedules"><%= t('schedule_multi_help') %></span></span></span>
         <% if (schedules.length) { %>
         <div class="ms" id="schedMs">
           <button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false" data-ph="<%= t('pick_schedules') %>">
@@ -169,7 +165,6 @@
         <% } else { %>
         <div class="ms-empty"><%= t('empty_schedules') %></div>
         <% } %>
-        <div class="help"><%= t('schedule_multi_help') %></div>
       </div>
     </div>
 

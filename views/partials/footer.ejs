@@ -32,6 +32,54 @@
     });
   });
 
+  var infoBtns = document.querySelectorAll('.info-btn');
+  function closeInfo(except) {
+    document.querySelectorAll('.info.on').forEach(function (w) {
+      if (w === except) return;
+      w.classList.remove('on');
+      var b = w.querySelector('.info-btn');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    });
+  }
+  // Keep the popover inside the viewport on narrow screens.
+  function placePop(w) {
+    var p = w.querySelector('.info-pop');
+    if (!p) return;
+    p.style.left = '0px';
+    var base = p.getBoundingClientRect().left;
+    var vw = document.documentElement.clientWidth;
+    var pad = 8;
+    var r = p.getBoundingClientRect();
+    var shift = 0;
+    if (r.right > vw - pad) shift = base - (r.right - (vw - pad));
+    if (base + shift < pad) shift = pad - base;
+    p.style.left = shift + 'px';
+  }
+  infoBtns.forEach(function (b) {
+    b.setAttribute('aria-expanded', 'false');
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var w = b.closest('.info');
+      var open = !w.classList.contains('on');
+      closeInfo(open ? w : null);
+      w.classList.toggle('on', open);
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) placePop(w);
+    });
+  });
+  document.addEventListener('click', function () { closeInfo(null); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var open = document.querySelector('.info.on');
+    if (!open) return;
+    var b = open.querySelector('.info-btn');
+    open.classList.remove('on');
+    if (b) { b.setAttribute('aria-expanded', 'false'); b.focus(); }
+  });
+  window.addEventListener('resize', function () {
+    document.querySelectorAll('.info.on').forEach(placePop);
+  });
+
   function toast(msg, kind) {
     var wrap = document.getElementById('toastWrap');
     if (!wrap || !msg) return;

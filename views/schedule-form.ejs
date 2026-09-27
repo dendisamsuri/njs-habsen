@@ -2,7 +2,6 @@
 <style>
   .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
   .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
-  .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input, .field select {
     border: 1px solid transparent;
     background: var(--line-soft);
@@ -76,9 +75,8 @@
       <div class="field full"><%= t('name') %>
         <input name="name" required maxlength="120" value="<%= row && row.name ? row.name : '' %>" />
       </div>
-      <div class="field full"><%= t('code') %>
+      <div class="field full"><span class="field-label"><%= t('code') %><span class="info"><button type="button" class="info-btn" aria-label="<%= t('info_label') %>" aria-expanded="false" aria-describedby="tip-sch-code"><svg class="ico" aria-hidden="true" focusable="false"><use href="#ico-info"></use></svg></button><span class="info-pop" role="tooltip" id="tip-sch-code"><%= t('code_help') %></span></span></span>
         <input name="code" maxlength="30" value="<%= row && row.code ? row.code : '' %>" placeholder="<%= t('code_ph') %>" />
-        <div class="help"><%= t('code_help') %></div>
       </div>
     </div>
 
