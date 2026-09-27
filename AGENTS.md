@@ -133,3 +133,15 @@ bash scripts/tunnel-smoke.sh   # UI 200, login, today, locations, bad-login EN
 4. Setelah ganti `.env` (mis. `CORS_ORIGINS`) → `docker compose -f docker-compose.prod.yml up -d --force-recreate app`.
 5. SSL/TLS di Cloudflare dashboard: **Full**.
 6. Base URL Flutter: `https://sistemlvn.web.id/api/v1` (lihat `docs/flutter-handoff-contract.md`).
+
+<!-- antislop:start -->
+## antislop
+Untuk pekerjaan UI, copy, orang, layout mobile, atau komentar kode: baca `DESIGN.md` (arah) lalu `antislop` (core), lalu skill untuk task-nya:
+- UI / visual: `.kilo/skills/antislop-ui/SKILL.md`
+- Copy & teks: `.kilo/skills/antislop-copywriting/SKILL.md`
+- Orang (a11y, kontras, fokus): `.kilo/skills/antislop-human/SKILL.md`
+- Mobile / responsif: `.kilo/skills/antislop-layoutmobile/SKILL.md`
+- Komentar kode: `.kilo/skills/antislop-code/SKILL.md`
+Core: `.kilo/skills/antislop/SKILL.md`
+Sebelum mulai, tanya user: antislop dipakai selama kerja atau setelah selesai.
+<!-- antislop:end -->
