@@ -422,6 +422,7 @@ export class ViewController {
       return fail(401, locale === 'en' ? 'Invalid email or password' : 'Email atau password salah');
     }
     if (!['PLATFORM_ADMIN', 'COMPANY_ADMIN', 'SUPERVISOR'].includes(user.role)) {
+      await record(false);
       return fail(403, locale === 'en' ? 'Access denied' : 'Akses ditolak');
     }
     this.throttle.clear(email, ip);
