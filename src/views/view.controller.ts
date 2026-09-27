@@ -21,6 +21,7 @@ import { DUMMY_PASSWORD_HASH } from '../auth/auth.service';
 import { resolveLocale, t } from '../i18n/messages';
 import { err } from '../common/exceptions';
 import { assertEmployeeRefs } from '../common/employee-refs';
+import { isValidIsoDate } from '../common/time.util';
 
 const COOKIE = 'absensi_token';
 const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{1,29}$/;
@@ -200,15 +201,16 @@ function tr(key: string, locale: string): string {
     empty_users: { id: 'Belum ada karyawan terdaftar di perusahaan ini.', en: 'No employees registered in this company.' },
     empty_leaves: { id: 'Belum ada pengajuan cuti atau izin.', en: 'No leave or permit requests yet.' },
     ro_original_date: { id: 'Tanggal Asli', en: 'Original Date' },
-    ro_off_type: { id: 'Jenis', en: 'Type' },
+    ro_half_day: { id: 'Setengah Hari', en: 'Half Day' },
+    ro_half_day_label: { id: 'Penggantian hanya setengah hari kerja', en: 'Replace half a working day only' },
+    ro_half_day_help: {
+      id: 'Centang bila hanya setengah hari kerja yang perlu diganti.',
+      en: 'Check when only half a working day needs to be replaced.',
+    },
     ro_expiry_days: { id: 'Masa Berlaku (hari)', en: 'Validity (days)' },
     ro_expiry_help: {
       id: 'Kosongkan untuk 30 hari sejak tanggal asli.',
       en: 'Leave empty for 30 days from the original date.',
-    },
-    ro_schedule_help: {
-      id: 'Kosongkan untuk memakai jadwal kerja karyawan.',
-      en: 'Leave empty to use the employee work schedule.',
     },
     ro_draft_help: {
       id: 'Tersimpan sebagai draft. Pegawai memilih tanggal replacement lalu mengirim pengajuan di aplikasi.',
@@ -981,14 +983,6 @@ export class ViewController {
               orderBy: { namaLengkap: 'asc' },
               select: { id: true, namaLengkap: true, nip: true },
             }),
-      schedules:
-        companyId == null
-          ? []
-          : await this.prisma.schedule.findMany({
-              where: { companyId, isActive: true },
-              orderBy: { name: 'asc' },
-              select: { id: true, name: true },
-            }),
       row,
     };
   }
@@ -998,7 +992,6 @@ export class ViewController {
       companyId: companyId ?? src?.companyId ?? null,
       user_id: src?.user_id ?? '',
       original_date: src?.original_date ?? '',
-      schedule_id: src?.schedule_id ?? '',
       is_half_day: src?.is_half_day === true || src?.is_half_day === 'on',
       expiry_days: src?.expiry_days ?? '',
       reason: src?.reason ?? '',
@@ -1042,15 +1035,12 @@ export class ViewController {
     const userId = Number(body?.user_id);
     if (!Number.isInteger(userId) || userId <= 0) return render('err_employee_required');
     const originalDate = String(body?.original_date ?? '').trim();
-    if (!DATE_RE.test(originalDate)) return render('err_date_invalid');
-    const date = new Date(`${originalDate}T00:00:00.000Z`);
-    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== originalDate) return render('err_date_invalid');
+    if (!DATE_RE.test(originalDate) || !isValidIsoDate(originalDate)) return render('err_date_invalid');
     const expiryRaw = String(body?.expiry_days ?? '').trim();
     const expiryDays = expiryRaw ? Number(expiryRaw) : undefined;
     if (expiryDays !== undefined && (!Number.isInteger(expiryDays) || expiryDays < 1 || expiryDays > 365)) {
       return render('err_expiry_invalid');
     }
-    const scheduleRaw = String(body?.schedule_id ?? '').trim();
     try {
       await this.replacementOffs.adminCreate(
         companyId,
@@ -1059,7 +1049,6 @@ export class ViewController {
           original_date: originalDate,
           is_half_day: body?.is_half_day === 'on',
           expiry_days: expiryDays,
-          schedule_id: scheduleRaw ? Number(scheduleRaw) : undefined,
           reason: String(body?.reason ?? '').trim() || undefined,
         },
         user.id,
@@ -1098,8 +1087,13 @@ export class ViewController {
     const sup = user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {};
     let rows: any[] = [];
     if (kind === 'replacement') {
+      // drafts are admin-created and not yet submitted, but the queue must show them
       const data = await this.prisma.replacementOff.findMany({
-        where: this.tenantWhere(user, { deletedAt: null, status, ...sup }),
+        where: this.tenantWhere(user, {
+          deletedAt: null,
+          status: { in: ['draft', 'pending', 'waiting_hr'] as any },
+          ...sup,
+        }),
         include: {
           user: { select: { namaLengkap: true } },
           company: { select: { name: true } },

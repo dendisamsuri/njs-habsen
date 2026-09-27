@@ -1,7 +1,5 @@
 <%- include('partials/header') %>
 <style>
-  .form-sec { font-size: .88rem; font-weight: 700; color: var(--ink); margin: 0 0 .9rem; }
-  .form-sec.blocked { border-top: 1px solid var(--line-soft); padding-top: 1.2rem; }
   .help { font-size: .74rem; font-weight: 400; color: var(--muted); margin-top: .25rem; }
   .field input, .field select, .field textarea {
     border: 1px solid transparent;
@@ -14,24 +12,26 @@
     color: var(--ink);
     transition: background .15s, border-color .15s;
   }
+  .field input:not([type="checkbox"]):not([type="radio"]), .field select { height: 40px; }
   .field textarea { min-height: 76px; resize: vertical; }
   .field input::placeholder { color: var(--faint); }
   .field input:hover, .field select:hover, .field textarea:hover { border-color: var(--line); }
   .field input:focus, .field select:focus, .field textarea:focus { background: var(--card); border-color: var(--brand-2); }
-  .seg { display: flex; gap: .5rem; }
-  .seg-opt {
-    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
-    border: 1px solid transparent; background: var(--line-soft); border-radius: 10px;
-    padding: .55rem .7rem; min-height: 38px; cursor: pointer;
-    font-size: .85rem; font-weight: 600; color: var(--label);
-    transition: background .15s, border-color .15s;
+  .field input[type="checkbox"] {
+    background: transparent; border: 0; padding: 0; min-height: 0;
+    width: 18px; height: 18px; accent-color: var(--brand);
   }
-  .seg-opt:hover { border-color: var(--line); }
-  .seg-opt.on { border-color: var(--brand-2); background: var(--brand-soft); color: var(--brand); }
-  .seg-opt input[type="radio"] { background: transparent; border: 0; padding: 0; min-height: 0; width: auto; height: auto; accent-color: var(--brand); }
-  .seg-opt input[type="radio"]:hover, .seg-opt input[type="radio"]:focus { border: 0; background: transparent; }
+  .field input[type="checkbox"]:hover, .field input[type="checkbox"]:focus { border: 0; background: transparent; }
+  .field input[type="checkbox"]:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; }
+  .check {
+    display: flex; align-items: center; gap: .6rem; height: 40px;
+    padding: .6rem .8rem; border: 1px solid transparent; border-radius: 10px;
+    background: var(--line-soft); cursor: pointer;
+    font-weight: 400; font-size: .85rem; color: var(--ink);
+    transition: border-color .15s;
+  }
+  .check:hover { border-color: var(--line); }
   .empty-pick { font-size: .78rem; color: var(--muted); font-weight: 400; }
-  @media (max-width: 640px) { .seg { flex-direction: column; } }
 </style>
 <div class="page-head">
   <div><h1><%= t('add') %> &mdash; <%= t('nav_apv_replacement') %></h1></div>
@@ -40,7 +40,6 @@
 <% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
 <div class="card card-pad" style="max-width:720px;">
   <form method="post" action="/ui/approvals/replacement-off/new">
-    <div class="form-sec"><%= t('ro_original_date') %></div>
     <div class="form-grid">
       <% if (companies) { %>
       <div class="field full"><%= t('company_label') %>
@@ -68,28 +67,16 @@
         <input type="hidden" name="user_id" value="" />
         <% } %>
       </div>
-      <div class="field"><%= t('ro_original_date') %>
+      <div class="field full"><%= t('ro_original_date') %>
         <input type="date" name="original_date" required value="<%= row.original_date %>" />
         <div class="help"><%= t('ro_draft_help') %></div>
       </div>
-      <div class="field"><%= t('schedule_label') %>
-        <select name="schedule_id">
-          <option value="">-</option>
-          <% schedules.forEach(function(s) { %>
-            <option value="<%= s.id %>" <%= String(row.schedule_id) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
-          <% }) %>
-        </select>
-        <div class="help"><%= t('ro_schedule_help') %></div>
-      </div>
-      <div class="field"><%= t('ro_off_type') %>
-        <div class="seg">
-          <label class="seg-opt <%= !row.is_half_day ? 'on' : '' %>">
-            <input type="radio" name="is_half_day" value="off" <%= !row.is_half_day ? 'checked' : '' %> /><%= t('no') %>
-          </label>
-          <label class="seg-opt <%= row.is_half_day ? 'on' : '' %>">
-            <input type="radio" name="is_half_day" value="on" <%= row.is_half_day ? 'checked' : '' %> /><%= t('yes') %>
-          </label>
-        </div>
+      <div class="field"><%= t('ro_half_day') %>
+        <label class="check">
+          <input type="checkbox" name="is_half_day" value="on" <%= row.is_half_day ? 'checked' : '' %> />
+          <span><%= t('ro_half_day_label') %></span>
+        </label>
+        <div class="help"><%= t('ro_half_day_help') %></div>
       </div>
       <div class="field"><%= t('ro_expiry_days') %>
         <input type="number" name="expiry_days" min="1" max="365" step="1" value="<%= row.expiry_days %>" placeholder="30" />
@@ -108,11 +95,6 @@
 </div>
 <script>
 (function () {
-  document.querySelectorAll('.seg-opt input').forEach(function (inp) {
-    inp.addEventListener('change', function () {
-      inp.closest('.seg-opt').classList.toggle('on', inp.checked);
-    });
-  });
   var co = document.getElementById('companyId');
   if (co) co.addEventListener('change', function () {
     location.href = location.pathname + (co.value ? '?companyId=' + encodeURIComponent(co.value) : '');

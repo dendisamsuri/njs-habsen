@@ -5,12 +5,13 @@
     if(s==='pending') return 'amber';
     if(s==='rejected'||s==='cancelled'||s==='expired') return 'red';
     return 'gray'; }
+  var waiting = rows.filter(function (r) { return r.status !== 'draft'; }).length;
 %>
 <style>
   .alert.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
 </style>
 <div class="page-head">
-  <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><%= rows.length %> menunggu keputusan</p></div>
+  <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><%= waiting %> menunggu keputusan</p></div>
   <% if (canAdd) { %><div class="page-actions"><a class="btn primary" href="/ui/approvals/replacement-off/new"><%= t('add') %></a></div><% } %>
 </div>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
@@ -30,8 +31,10 @@
           <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
           <td><%= r.reason %></td>
           <td><div class="row-actions">
+            <% if (r.status === 'draft') { %>-<% } else { %>
             <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
             <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>
+            <% } %>
           </div></td>
         </tr>
       <% }) %>
