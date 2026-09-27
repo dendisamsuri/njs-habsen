@@ -32,10 +32,11 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
-  app.setGlobalPrefix('api/v1', { exclude: ['ui', 'ui/(.*)', 'health', 'uploads', 'uploads/(.*)'] });
+  app.setGlobalPrefix('api/v1', { exclude: ['ui', 'ui/(.*)', 'health'] });
   app.setViewEngine('ejs');
   app.setBaseViewsDir(join(process.cwd(), 'views'));
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // uploads/ is deliberately not served statically — attendance selfies, face masters and
+  // leave attachments are PII. Every read goes through a controller that checks the requester.
 
   // HEAD probe tolerance — Flutter signal meter hits bare host every 15s
   const server = app.getHttpServer();

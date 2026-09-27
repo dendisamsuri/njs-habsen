@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Query, Req, Res } from '@nestjs/common';
 import { IsNotEmpty, IsString, IsInt } from 'class-validator';
 import { FaceService } from './face.service';
 import { err } from '../common/exceptions';
@@ -37,14 +37,20 @@ export class FaceController {
     return true;
   }
 
-  /** Public: face photo for Image.network without Authorization. */
+  /** Flutter Image.network cannot attach an Authorization header, so the signed query
+   *  token is the credential. Never cache it: the token is a bearer secret. */
   @Public()
   @Get('photo/:id')
-  async photo(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const { abs } = await this.face.photoFile(id);
+  async photo(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+    @Query('exp') exp?: string,
+    @Query('t') t?: string,
+  ) {
+    const { abs } = await this.face.photoFile(id, exp ? Number(exp) : undefined, t);
     if (!existsSync(abs)) throw err('NOT_FOUND', 404);
     res.setHeader('Content-Type', abs.endsWith('.png') ? 'image/png' : 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'private, no-store');
     createReadStream(abs).pipe(res);
   }
 }

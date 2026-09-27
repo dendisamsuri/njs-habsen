@@ -36,8 +36,27 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const client_1 = require("@prisma/client");
 const bcrypt = __importStar(require("bcryptjs"));
 const prisma = new client_1.PrismaClient();
-async function main() {
-    const password = await bcrypt.hash('Password123!', 10);
+// Production has no fixed credentials: the first platform admin comes from the environment.
+async function bootstrapAdmin() {
+    const email = (process.env.BOOTSTRAP_ADMIN_EMAIL ?? '').trim().toLowerCase();
+    const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? '';
+    if (!email || password.length < 12) {
+        throw new Error('User table is empty. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD (min 12 chars).');
+    }
+    await prisma.user.create({
+        data: {
+            email,
+            passwordHash: await bcrypt.hash(password, 12),
+            namaLengkap: process.env.BOOTSTRAP_ADMIN_NAME ?? 'Platform Admin',
+            role: 'PLATFORM_ADMIN',
+            companyId: null,
+            langPref: 'id',
+        },
+    });
+    console.log('Bootstrap platform admin created:', email);
+}
+async function seedDemo() {
+    const password = await bcrypt.hash(process.env.DEMO_PASSWORD ?? 'Password123!', 12);
     const platform = await prisma.user.upsert({
         where: { email: 'platform@demo.test' },
         update: {},
@@ -273,7 +292,7 @@ async function main() {
         },
     });
     // eslint-disable-next-line no-console
-    console.log('Seed done', {
+    console.log('Demo seed done', {
         platform: platform.email,
         admin: admin.email,
         sup: sup.email,
@@ -283,6 +302,16 @@ async function main() {
         empB: empB.email,
         companyB: companyB.code,
     });
+}
+async function main() {
+    if (process.env.SEED_DEMO === '1') {
+        await seedDemo();
+        return;
+    }
+    if ((await prisma.user.count()) === 0)
+        await bootstrapAdmin();
+    else
+        console.log('Seed skipped — user table is not empty.');
 }
 main()
     .catch((e) => {

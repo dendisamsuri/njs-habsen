@@ -513,10 +513,21 @@ export class ReportsService {
   ) {
     if (!isValidIsoDate(params.date)) throw err('INVALID_DATE_FORMAT', 400);
     const c = this.c();
+    const scopeIds = await this.scopeUserIds(scope);
 
     if (params.action === 'events' && params.flow_id) {
+      // attendance_process_events has no company_id, so authorise through the owning log first.
+      const owner = await c.attendanceProcessLog.findFirst({
+        where: {
+          flowId: params.flow_id,
+          ...this.cw(scope),
+          ...(scopeIds ? { userId: { in: scopeIds } } : {}),
+        },
+        select: { flowId: true },
+      });
+      if (!owner) throw err('NOT_FOUND', 404);
       const events = await c.attendanceProcessEvent.findMany({
-        where: { flowId: params.flow_id },
+        where: { flowId: owner.flowId },
         orderBy: { createdAt: 'asc' },
       });
       return events.map((e: any, i: number) => ({
@@ -537,6 +548,7 @@ export class ReportsService {
     const where: any = {
       ...this.cw(scope),
       createdAt: { gte: start, lt: end },
+      ...(scopeIds ? { userId: { in: scopeIds } } : {}),
       ...(params.employee_id ? { userId: params.employee_id } : {}),
     };
     const page = Math.max(params.page ?? 1, 1);

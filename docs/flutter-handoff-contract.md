@@ -22,7 +22,7 @@ Header: `Authorization: Bearer <access_token>`, `Accept-Language: id|en` (defaul
 | `status_pulang` | `Pulang Cepat\|''` | **`PULANG_CEPAT\|null`** |
 | `kehadiran` | `Hadir\|Cuti\|Izin` | **`HADIR\|CUTI\|IZIN\|LIBUR`** |
 | `error_code` | tidak ada | selalu ada pada error — pakai untuk i18n lokal Flutter |
-| `photo_url` face | URL publik lama | **`GET /api/v1/face/photo/:id` publik tanpa Bearer** |
+| `photo_url` face | URL publik lama | **`GET /api/v1/face/photo/:id?exp&t` publik tanpa Bearer, URL bertanda tangan + kedaluwarsa** |
 | HEAD probe | `/employee-api` | **`HEAD /`** di root host (di luar `/api/v1`) — ditoleransi 200 |
 | Izin (izin kategori) | endpoint terpisah lama | **digabung** `/leaves` (leave_type category `PERMIT`/`SICK`) |
 | Notifikasi employee | tidak ada di employee-api | **baru** `GET /notifications` |
@@ -146,9 +146,11 @@ Item: `{ lokasi_id, code, lokasi_nama, lokasi_latitude, lokasi_longitude, lokasi
 ```json
 { "has_recognition": true,
   "face": { "recognition_id": 1, "photo": "face/face_1_....jpg",
-            "photo_url": "/api/v1/face/photo/1" } }
+            "photo_url": "/api/v1/face/photo/1?exp=1780000000&t=<hmac>" } }
 ```
 `has_recognition` **JSON boolean asli**. `photo_url` relatif ke host — `Image.network(baseUrlOrigin + photo_url)` tanpa Bearer.
+
+`photo_url` bertanda tangan dan **kedaluwarsa** (`exp` = epoch detik, default 24 jam, env `FACE_PHOTO_URL_TTL`). Jangan di-cache di sisi client; panggil ulang `GET /face` untuk URL baru.
 
 ### POST /face/register `{img}` → `data` = face object (sama seperti `face` di atas).
 ### POST /face/delete `{recognition_id}` → 200.

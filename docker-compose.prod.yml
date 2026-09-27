@@ -71,6 +71,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       TZ: Asia/Jakarta
       NODE_ENV: production
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Platform Admin}
     depends_on:
       mysql:
         condition: service_healthy

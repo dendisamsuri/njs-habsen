@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { TenantPrismaService } from '../prisma/prisma.module';
 import { err } from '../common/exceptions';
 
@@ -25,6 +25,22 @@ export class FaceService {
     const n = Number(raw || '10');
     if (n < 2 || n > 60) return 10;
     return n;
+  }
+
+  private photoTtlSec(): number {
+    const n = Number(process.env.FACE_PHOTO_URL_TTL ?? 86400);
+    return Number.isInteger(n) && n > 0 && n <= 604800 ? n : 86400;
+  }
+
+  private photoToken(row: { id: number; userId: number }, expires: number): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw err('SERVER_ERROR', 500);
+    return createHmac('sha256', secret).update(`${row.id}.${row.userId}.${expires}`).digest('hex');
+  }
+
+  private photoUrl(row: { id: number; userId: number }): string {
+    const exp = Math.floor(Date.now() / 1000) + this.photoTtlSec();
+    return `/api/v1/face/photo/${row.id}?exp=${exp}&t=${this.photoToken(row, exp)}`;
   }
 
   decodeDataUri(dataUri: string): Buffer {
@@ -120,7 +136,7 @@ export class FaceService {
       data: {
         recognition_id: row.id,
         photo: row.photoPath,
-        photo_url: `/api/v1/face/photo/${row.id}`,
+        photo_url: this.photoUrl(row),
       },
     };
   }
@@ -148,7 +164,7 @@ export class FaceService {
     return {
       recognition_id: row.id,
       photo: row.photoPath,
-      photo_url: `/api/v1/face/photo/${row.id}`,
+      photo_url: this.photoUrl(row),
     };
   }
 
@@ -166,9 +182,20 @@ export class FaceService {
     return true;
   }
 
-  async photoFile(id: number): Promise<{ abs: string }> {
-    const row = await this.prisma.faceRecognition.findUnique({ where: { id } });
-    if (!row) throw err('NOT_FOUND', 404);
+  // The URL is the credential: HMAC binds id+userId+expiry, so a bare id cannot be enumerated.
+  async photoFile(id: number, exp?: number, token?: string): Promise<{ abs: string }> {
+    const row = await this.prisma.faceRecognition.findUnique({
+      where: { id },
+      select: { id: true, userId: true, photoPath: true },
+    });
+    if (!row || !Number.isInteger(exp) || !token || (exp as number) < Math.floor(Date.now() / 1000)) {
+      throw err('NOT_FOUND', 404);
+    }
+    const expected = Buffer.from(this.photoToken(row, exp as number));
+    const given = Buffer.from(token);
+    if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
+      throw err('NOT_FOUND', 404);
+    }
     return { abs: path.join(process.env.UPLOAD_DIR ?? 'uploads', row.photoPath) };
   }
 }

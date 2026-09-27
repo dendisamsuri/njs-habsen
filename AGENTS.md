@@ -86,7 +86,8 @@ Flow: pack tar → scp → extract ke `/opt/njs-habsen` → `docker compose -f d
 | Port app | `127.0.0.1:3000` (di belakang tunnel) |
 | Face service | `face-recognition-service/` → `http://face:8000` (internal, tanpa port publik) |
 | Env | `/opt/njs-habsen/.env` — **secret di server, jangan commit** |
-| Seed password demo | `Password123!` (email `*@demo.test`) |
+| Bootstrap admin | Seed hanya bikin platform admin kalau tabel user kosong, dari `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD` (min 12) |
+| Seed demo | Hanya jalan bila `SEED_DEMO=1` (dev). **Jangan pernah** di produksi — akun `*@demo.test` pakai password `DEMO_PASSWORD` |
 
 ### Cloudflare Tunnel
 
