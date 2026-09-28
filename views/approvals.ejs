@@ -5,20 +5,32 @@
     if(s==='pending') return 'amber';
     if(s==='rejected'||s==='cancelled'||s==='expired') return 'red';
     return 'gray'; }
-  var waiting = rows.filter(function (r) { return r.status !== 'draft'; }).length;
+  var decidableStatuses = (typeof decidable !== 'undefined' && decidable) ? decidable : ['pending', 'waiting_hr'];
+  function isDecidable(s){ return decidableStatuses.indexOf(s) >= 0; }
+  var waiting = rows.filter(function (r) { return isDecidable(r.status); }).length;
 %>
 <style>
   .alert.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
 </style>
 <div class="page-head">
-  <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><%= waiting %> menunggu keputusan</p></div>
+  <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><% if (allStatuses) { %><%= t('apv_all_scope') %><% } else { %><%= waiting %> <%= t('apv_awaiting') %><% } %></p></div>
   <% if (canAdd) { %><div class="page-actions"><a class="btn primary" href="/ui/approvals/replacement-off/new"><%= t('add') %></a></div><% } %>
 </div>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert error"><%= error %></div><% } %>
 <% if (typeof created !== 'undefined' && created) { %><div class="alert ok"><%= t('ro_created_msg') %></div><% } %>
 <div class="card">
-  <div class="table-toolbar"><b>Antrean persetujuan</b><span class="count"><%= rows.length %> <%= t('rows_label') %></span></div>
-  <% if (!rows.length) { %><div class="empty"><%= t('empty_approvals') %></div><% } else { %>
+  <% if (statusOptions) { %>
+  <form method="get" action="/ui/approvals/replacement-off" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
+    <div class="field"><%= t('status') %><select name="status">
+      <option value="" <%= !statusFilter ? 'selected' : '' %>><%= t('all') %></option>
+      <% statusOptions.forEach(function(v) { %><option value="<%= v %>" <%= statusFilter === v ? 'selected' : '' %>><%= v %></option><% }) %>
+    </select></div>
+    <button class="btn primary" type="submit"><%= t('filter') %></button>
+    <a class="btn" href="/ui/approvals/replacement-off"><%= t('reset') %></a>
+  </form>
+  <% } %>
+  <div class="table-toolbar"><b><%= allStatuses ? t('apv_all_records') : t('apv_queue') %></b><span class="count"><%= rows.length %><% if (total > rows.length) { %> / <%= total %><% } %> <%= t('rows_label') %></span></div>
+  <% if (!rows.length) { %><div class="empty"><%= allStatuses ? t('empty_approvals_all') : t('empty_approvals') %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
     <thead><tr><th><%= t('employee') %></th><th><%= t('company_label') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th><%= t('status') %></th><th><%= t('reason') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
     <tbody>
@@ -31,9 +43,9 @@
           <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
           <td><%= r.reason %></td>
           <td><div class="row-actions">
-            <% if (r.status === 'draft') { %>-<% } else { %>
-            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
-            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="Ditolak via dashboard" /><button class="small no" type="submit"><%= t('reject') %></button></form>
+            <% if (!isDecidable(r.status)) { %>-<% } else { %>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="status" value="<%= statusFilter %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="status" value="<%= statusFilter %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="<%= t('reject_default_comment') %>" /><button class="small no" type="submit"><%= t('reject') %></button></form>
             <% } %>
           </div></td>
         </tr>

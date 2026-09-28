@@ -29,6 +29,7 @@ const TIME_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCHEDULE_DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
 const WORKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+const RO_STATUSES = ['draft', 'pending', 'waiting_hr', 'approved', 'rejected', 'cancelled', 'expired', 'used'] as const;
 const NAV = [
   { href: '/ui/dashboard', key: 'nav_dashboard' },
   { href: '/ui/reports', key: 'nav_reports' },
@@ -198,6 +199,15 @@ function tr(key: string, locale: string): string {
       id: 'Antrean kosong — semua pengajuan sudah diproses.',
       en: 'Queue empty — all requests have been processed.',
     },
+    empty_approvals_all: {
+      id: 'Belum ada pengajuan replacement off di perusahaan mana pun.',
+      en: 'No replacement off requests in any company yet.',
+    },
+    apv_awaiting: { id: 'menunggu keputusan', en: 'awaiting decision' },
+    apv_queue: { id: 'Antrean persetujuan', en: 'Approval queue' },
+    apv_all_records: { id: 'Semua pengajuan', en: 'All requests' },
+    apv_all_scope: { id: 'Semua perusahaan, semua status', en: 'All companies, all statuses' },
+    reject_default_comment: { id: 'Ditolak via dashboard', en: 'Rejected from dashboard' },
     empty_users: { id: 'Belum ada karyawan terdaftar di perusahaan ini.', en: 'No employees registered in this company.' },
     empty_leaves: { id: 'Belum ada pengajuan cuti atau izin.', en: 'No leave or permit requests yet.' },
     ro_original_date: { id: 'Tanggal Asli', en: 'Original Date' },
@@ -1132,22 +1142,33 @@ export class ViewController {
     const locale = this.locale(req);
     const status = { in: ['pending', 'waiting_hr'] as any };
     const sup = user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {};
+    // platform admin audits the whole ledger, so the open-queue filter is dropped for them
+    const allStatuses = kind === 'replacement' && user.role === 'PLATFORM_ADMIN';
+    const decidable = user.role === 'SUPERVISOR' ? ['pending'] : ['pending', 'waiting_hr'];
+    const wanted = String(req.query.status ?? '');
+    const statusFilter = allStatuses && (RO_STATUSES as readonly string[]).includes(wanted) ? wanted : '';
     let rows: any[] = [];
+    let total = 0;
     if (kind === 'replacement') {
       // drafts are admin-created and not yet submitted, but the queue must show them
-      const data = await this.prisma.replacementOff.findMany({
-        where: this.tenantWhere(user, {
-          deletedAt: null,
-          status: { in: ['draft', 'pending', 'waiting_hr'] as any },
-          ...sup,
-        }),
-        include: {
-          user: { select: { namaLengkap: true } },
-          company: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 100,
+      const where = this.tenantWhere(user, {
+        deletedAt: null,
+        status: allStatuses ? (statusFilter ? { in: [statusFilter] } : {}) : { in: ['draft', 'pending', 'waiting_hr'] },
+        ...sup,
       });
+      const [data, count] = await this.prisma.$transaction([
+        this.prisma.replacementOff.findMany({
+          where,
+          include: {
+            user: { select: { namaLengkap: true } },
+            company: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+          take: 200,
+        }),
+        this.prisma.replacementOff.count({ where }),
+      ]);
+      total = count;
       rows = data.map((r) => ({
         id: r.id,
         nama_lengkap: r.user.namaLengkap,
@@ -1163,21 +1184,26 @@ export class ViewController {
         kind === 'leave'
           ? { category: 'LEAVE' as any }
           : { category: { in: ['PERMIT', 'SICK'] as any } };
-      const data = await this.prisma.leaveRequest.findMany({
-        where: this.tenantWhere(user, {
-          deletedAt: null,
-          status,
-          ...sup,
-          leaveType,
-        }),
-        include: {
-          leaveType: true,
-          user: { select: { namaLengkap: true } },
-          company: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 100,
+      const where = this.tenantWhere(user, {
+        deletedAt: null,
+        status,
+        ...sup,
+        leaveType,
       });
+      const [data, count] = await this.prisma.$transaction([
+        this.prisma.leaveRequest.findMany({
+          where,
+          include: {
+            leaveType: true,
+            user: { select: { namaLengkap: true } },
+            company: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+          take: 200,
+        }),
+        this.prisma.leaveRequest.count({ where }),
+      ]);
+      total = count;
       rows = data.map((r) => ({
         id: r.id,
         nama_lengkap: r.user.namaLengkap,
@@ -1194,7 +1220,12 @@ export class ViewController {
       ...this.helpers(locale),
       user: { nama_lengkap: user.namaLengkap, role: user.role },
       rows,
+      total,
       kind,
+      allStatuses,
+      decidable,
+      statusFilter,
+      statusOptions: allStatuses ? RO_STATUSES : null,
       canAdd: kind === 'replacement' && (user.role === 'PLATFORM_ADMIN' || user.role === 'COMPANY_ADMIN'),
       created: kind === 'replacement' && req.query.ok === 'create',
       error: req.query.error ? t(String(req.query.error), locale as any) : null,
@@ -1211,8 +1242,11 @@ export class ViewController {
     const kind = ['leave', 'permit', 'replacement'].includes(body?.kind) ? body.kind : 'leave';
     const decision = body?.decision === 'rejected' ? 'rejected' : 'approved';
     const comment =
-      String(body?.comment ?? '') || (decision === 'rejected' ? 'Ditolak via dashboard' : '');
+      String(body?.comment ?? '') ||
+      (decision === 'rejected' ? tr('reject_default_comment', this.locale(req)) : '');
     const slugBack = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
+    const backStatus = String(body?.status ?? '');
+    const qs = (RO_STATUSES as readonly string[]).includes(backStatus) ? `&status=${backStatus}` : '';
     try {
       await this.approvals.transition(
         kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',
@@ -1233,10 +1267,10 @@ export class ViewController {
         'LEAVE_NOT_DIRECT_REPORT', 'LEAVE_INVALID_TRANSITION', 'LEAVE_COMMENT_INVALID',
         'LEAVE_INVALID_ACTOR', 'APPROVAL_SIDE_EFFECT_FAILED', 'NOT_FOUND',
       ];
-      return res.redirect(`/ui/approvals/${slugBack}?error=${known.includes(code) ? code : 'APPROVAL_SIDE_EFFECT_FAILED'}`);
+      return res.redirect(`/ui/approvals/${slugBack}?error=${known.includes(code) ? code : 'APPROVAL_SIDE_EFFECT_FAILED'}${qs}`);
     }
     const slug = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
-    return res.redirect(`/ui/approvals/${slug}?ok=${decision === 'rejected' ? 'reject' : 'approve'}`);
+    return res.redirect(`/ui/approvals/${slug}?ok=${decision === 'rejected' ? 'reject' : 'approve'}${qs}`);
   }
 
   @Get('reports')
