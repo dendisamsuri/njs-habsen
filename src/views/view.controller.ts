@@ -226,6 +226,20 @@ function tr(key: string, locale: string): string {
     },
     err_employee_required: { id: 'Pilih karyawan', en: 'Select an employee' },
     err_expiry_invalid: { id: 'Masa berlaku harus 1–365 hari', en: 'Validity must be 1–365 days' },
+    err_ro_conflict: {
+      id: 'Sudah ada replacement off untuk karyawan ini pada tanggal tersebut.',
+      en: 'A replacement off already exists for this employee on that date.',
+    },
+    err_ro_conflict_status: {
+      id: 'Sudah ada replacement off untuk karyawan ini pada tanggal tersebut, status {status}.',
+      en: 'A replacement off already exists for this employee on that date, status {status}.',
+    },
+    err_ro_employee_missing: { id: 'Karyawan tidak ditemukan di perusahaan ini', en: 'Employee not found in this company' },
+    err_ro_not_allowed: {
+      id: 'Karyawan ini belum diizinkan replacement off',
+      en: 'This employee is not enabled for replacement off',
+    },
+    err_ro_no_schedule: { id: 'Karyawan ini belum punya jadwal kerja', en: 'This employee has no work schedule yet' },
     empty_locations: {
       id: 'Belum ada lokasi. Tambah lokasi agar absen berbasis radius bisa dipakai.',
       en: 'No locations yet. Add a location to enable radius-based check-in.',
@@ -1015,6 +1029,22 @@ export class ViewController {
     };
   }
 
+  /** Unlisted service codes fall back to err_save_failed so no raw error_code reaches the form. */
+  private roFormError(code: string, meta: Record<string, any> | undefined, locale: string): string {
+    const map: Record<string, string> = {
+      INVALID_DATE_FORMAT: 'err_date_invalid',
+      REPLACEMENT_EXPIRY_INVALID: 'err_expiry_invalid',
+      USER_NOT_FOUND: 'err_ro_employee_missing',
+      REPLACEMENT_NOT_ALLOWED: 'err_ro_not_allowed',
+      SCHEDULE_NOT_FOUND: 'err_ro_no_schedule',
+    };
+    if (code === 'CONFLICT') {
+      const status = String(meta?.status ?? '');
+      return tr(status ? 'err_ro_conflict_status' : 'err_ro_conflict', locale).replace('{status}', status);
+    }
+    return tr(map[code] ?? 'err_save_failed', locale);
+  }
+
   @Get('approvals/replacement-off/new')
   async replacementOffNewPage(@Req() req: Request, @Res() res: Response) {
     const user = await this.requireUser(req, res);
@@ -1039,24 +1069,24 @@ export class ViewController {
     if (!this.requireRoWrite(user, res)) return res as any;
     const locale = this.locale(req);
     const companyId = await this.mdCompanyId(user, body);
-    const render = async (code: string) =>
+    const render = async (message: string) =>
       res.status(400).render('replacement-off-form', {
         ...this.helpers(locale),
         user: { nama_lengkap: user.namaLengkap, role: user.role },
-        error: tr(code, locale),
+        error: message,
         ...(await this.roFormData(user, companyId, this.roRowOf(body, companyId))),
         page: 'approvals/replacement-off',
       });
 
-    if (companyId == null) return render('err_company_required');
+    if (companyId == null) return render(tr('err_company_required', locale));
     const userId = Number(body?.user_id);
-    if (!Number.isInteger(userId) || userId <= 0) return render('err_employee_required');
+    if (!Number.isInteger(userId) || userId <= 0) return render(tr('err_employee_required', locale));
     const originalDate = String(body?.original_date ?? '').trim();
-    if (!DATE_RE.test(originalDate) || !isValidIsoDate(originalDate)) return render('err_date_invalid');
+    if (!DATE_RE.test(originalDate) || !isValidIsoDate(originalDate)) return render(tr('err_date_invalid', locale));
     const expiryRaw = String(body?.expiry_days ?? '').trim();
     const expiryDays = expiryRaw ? Number(expiryRaw) : undefined;
     if (expiryDays !== undefined && (!Number.isInteger(expiryDays) || expiryDays < 1 || expiryDays > 365)) {
-      return render('err_expiry_invalid');
+      return render(tr('err_expiry_invalid', locale));
     }
     try {
       await this.replacementOffs.adminCreate(
@@ -1071,7 +1101,7 @@ export class ViewController {
         user.id,
       );
     } catch (e: any) {
-      return render(String(e?.errorCode ?? 'err_save_failed'));
+      return render(this.roFormError(String(e?.errorCode ?? ''), e?.meta, locale));
     }
     return res.redirect('/ui/approvals/replacement-off?ok=create');
   }

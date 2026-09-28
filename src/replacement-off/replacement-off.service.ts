@@ -245,7 +245,15 @@ export class ReplacementOffService {
         status: { notIn: ['rejected', 'expired'] as any },
       },
     });
-    if (conflict) throw err('CONFLICT', 409);
+    // meta is dropped by the API envelope; the admin form reads it to name the blocking record.
+    if (conflict) {
+      throw err('CONFLICT', 409, {
+        existing_id: conflict.id,
+        status: conflict.status,
+        original_date: todayIso(new Date(conflict.originalDate)),
+        replacement_date: conflict.replacementDate ? todayIso(new Date(conflict.replacementDate)) : null,
+      });
+    }
 
     const expiryDays = input.expiry_days ?? DEFAULT_EXPIRY_DAYS;
     const expiresAt = addDaysIso(input.original_date, expiryDays);
