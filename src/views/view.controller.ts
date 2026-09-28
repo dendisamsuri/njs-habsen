@@ -86,6 +86,7 @@ function tr(key: string, locale: string): string {
     today: { id: 'Hari ini', en: 'Today' },
     empty: { id: 'Tidak ada data', en: 'No data' },
     status: { id: 'Status', en: 'Status' },
+    st_pending: { id: 'Menunggu Persetujuan', en: 'Waiting for Approval' },
     actions: { id: 'Aksi', en: 'Actions' },
     approve: { id: 'Setujui', en: 'Approve' },
     reject: { id: 'Tolak', en: 'Reject' },
@@ -361,6 +362,11 @@ function tr(key: string, locale: string): string {
   return entry[locale] ?? entry.id;
 }
 
+function stLabel(status: string, locale: string): string {
+  const s = String(status ?? '');
+  return s.toLowerCase() === 'pending' ? tr('st_pending', locale) : s;
+}
+
 @Public()
 @Controller('ui')
 export class ViewController {
@@ -382,6 +388,7 @@ export class ViewController {
   private helpers(locale: string) {
     return {
       t: (k: string) => tr(k, locale),
+      stLabel: (s: string) => stLabel(s, locale),
       nav: NAV.map((n) => ({ ...n, label: tr(n.key, locale) })),
       locale,
       langUrl: (l: string) => `/ui/lang/${l}`,
@@ -1050,7 +1057,7 @@ export class ViewController {
     };
     if (code === 'CONFLICT') {
       const status = String(meta?.status ?? '');
-      return tr(status ? 'err_ro_conflict_status' : 'err_ro_conflict', locale).replace('{status}', status);
+      return tr(status ? 'err_ro_conflict_status' : 'err_ro_conflict', locale).replace('{status}', stLabel(status, locale));
     }
     return tr(map[code] ?? 'err_save_failed', locale);
   }

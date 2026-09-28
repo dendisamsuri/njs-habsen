@@ -23,7 +23,7 @@
   <form method="get" action="/ui/approvals/replacement-off" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
     <div class="field"><%= t('status') %><select name="status">
       <option value="" <%= !statusFilter ? 'selected' : '' %>><%= t('all') %></option>
-      <% statusOptions.forEach(function(v) { %><option value="<%= v %>" <%= statusFilter === v ? 'selected' : '' %>><%= v %></option><% }) %>
+      <% statusOptions.forEach(function(v) { %><option value="<%= v %>" <%= statusFilter === v ? 'selected' : '' %>><%= stLabel(v) %></option><% }) %>
     </select></div>
     <button class="btn primary" type="submit"><%= t('filter') %></button>
     <a class="btn" href="/ui/approvals/replacement-off"><%= t('reset') %></a>
@@ -40,7 +40,7 @@
           <td style="font-size:.82rem;"><%= r.company %></td>
           <td><span class="badge blue"><%= r.jenis %></span></td>
           <td class="mono"><%= r.start_date %> → <%= r.end_date %></td>
-          <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
+          <td><span class="badge <%= stCls(r.status) %>"><%= stLabel(r.status) %></span></td>
           <td><%= r.reason %></td>
           <td><div class="row-actions">
             <% if (!isDecidable(r.status)) { %>-<% } else { %>

@@ -20,7 +20,7 @@
           <td><span class="badge blue"><%= r.jenis %></span></td>
           <td class="mono"><%= r.start_date %> → <%= r.end_date %></td>
           <td class="mono"><%= r.total_days %></td>
-          <td><span class="badge <%= stCls(r.status) %>"><%= r.status %></span></td>
+          <td><span class="badge <%= stCls(r.status) %>"><%= stLabel(r.status) %></span></td>
           <td><%= r.reason %></td>
         </tr>
       <% }) %>
