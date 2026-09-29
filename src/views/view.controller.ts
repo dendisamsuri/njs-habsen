@@ -87,6 +87,7 @@ function tr(key: string, locale: string): string {
     empty: { id: 'Tidak ada data', en: 'No data' },
     status: { id: 'Status', en: 'Status' },
     st_pending: { id: 'Menunggu Persetujuan', en: 'Waiting for Approval' },
+    st_waiting_hr: { id: 'Menunggu Persetujuan HR', en: 'Waiting HR Approval' },
     actions: { id: 'Aksi', en: 'Actions' },
     approve: { id: 'Setujui', en: 'Approve' },
     reject: { id: 'Tolak', en: 'Reject' },
@@ -363,8 +364,10 @@ function tr(key: string, locale: string): string {
 }
 
 function stLabel(status: string, locale: string): string {
-  const s = String(status ?? '');
-  return s.toLowerCase() === 'pending' ? tr('st_pending', locale) : s;
+  const s = String(status ?? '').toLowerCase();
+  if (s === 'pending') return tr('st_pending', locale);
+  if (s === 'waiting_hr') return tr('st_waiting_hr', locale);
+  return String(status ?? '');
 }
 
 @Public()
