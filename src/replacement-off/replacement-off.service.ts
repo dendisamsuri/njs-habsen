@@ -85,7 +85,34 @@ export class ReplacementOffService {
     });
     let records = rows.map((r: any) => this.toRecord(r));
     if (status) records = records.filter((r: any) => r.status === status);
-    return { total: records.length, records };
+    return { total: records.length, records: await this.withTimeline(records) };
+  }
+
+  /** Riwayat approval per record, bentuknya sama dengan `timeline` di leaves. */
+  private async withTimeline(records: any[]): Promise<any[]> {
+    if (records.length === 0) return records;
+    const c = this.c();
+    const approvals = await c.requestApproval.findMany({
+      where: { requestType: 'REPLACEMENT_OFF', requestId: { in: records.map((r: any) => r.id) } },
+      orderBy: { createdAt: 'asc' },
+      include: { actor: { select: { namaLengkap: true } } },
+    });
+    const byRequest = new Map<number, any[]>();
+    for (const a of approvals) {
+      const events = byRequest.get(a.requestId) ?? [];
+      events.push({
+        event_type: a.eventType,
+        label: a.eventType,
+        status: a.status,
+        actor_name: a.actor?.namaLengkap ?? null,
+        comment: a.comment,
+        timestamp: a.createdAt,
+        level: a.level,
+      });
+      byRequest.set(a.requestId, events);
+    }
+    for (const r of records) r.timeline = byRequest.get(r.id) ?? [];
+    return records;
   }
 
   /** companyId null = PLATFORM_ADMIN, list every tenant. */

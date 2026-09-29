@@ -199,10 +199,14 @@ CutiRecord:
   "reason": "...", "employee_note": null,
   "status": "draft", "status_label": "Draft",
   "expires_at": "YYYY-MM-DD", "is_expired": false, "can_submit": true,
-  "created_at": "ISO" }
+  "created_at": "ISO",
+  "timeline": [
+    { "event_type": "SUBMIT", "label": "SUBMIT", "status": "pending",
+      "actor_name": "...", "comment": null, "timestamp": "ISO", "level": 0 }]}
 ```
 - `has_replacement_date`, `can_submit` → **boolean asli**.
 - `is_half_day`, `is_expired` → boolean asli (toleran `1` tidak wajib lagi).
+- `timeline` selalu ada (kosong `[]` bila belum ada approval) — bentuk identik `timeline` di `GET /leaves/:id`.
 - Fitur off untuk user → 403 `REPLACEMENT_NOT_ALLOWED`.
 - Record dibuat oleh **platform admin / company admin** lewat dashboard (`/ui/approvals/replacement-off` → Tambah) dengan `status: "draft"`. App cukup menampilkan draft itu — employees yang memilih `replacement_date` lalu submit.
 
