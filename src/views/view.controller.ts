@@ -30,6 +30,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCHEDULE_DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] as const;
 const WORKDAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 const RO_STATUSES = ['draft', 'pending', 'waiting_hr', 'approved', 'rejected', 'cancelled', 'expired', 'used'] as const;
+const LEAVE_STATUSES = ['pending', 'waiting_hr', 'approved', 'rejected', 'cancelled'] as const;
 const NAV = [
   { href: '/ui/dashboard', key: 'nav_dashboard' },
   { href: '/ui/reports', key: 'nav_reports' },
@@ -210,6 +211,25 @@ function tr(key: string, locale: string): string {
     apv_all_records: { id: 'Semua pengajuan', en: 'All requests' },
     apv_all_scope: { id: 'Semua perusahaan, semua status', en: 'All companies, all statuses' },
     reject_default_comment: { id: 'Ditolak via dashboard', en: 'Rejected from dashboard' },
+    reject_title: { id: 'Tolak pengajuan', en: 'Reject request' },
+    reject_reason_label: { id: 'Alasan penolakan', en: 'Rejection reason' },
+    reject_reason_help: {
+      id: 'Minimal 5 karakter. Alasan ini tersimpan di riwayat persetujuan.',
+      en: 'At least 5 characters. The reason is stored in the approval history.',
+    },
+    reject_confirm: { id: 'Ya, tolak', en: 'Yes, reject' },
+    empty_approvals_all_leaves: {
+      id: 'Belum ada pengajuan cuti di perusahaan mana pun.',
+      en: 'No leave requests in any company yet.',
+    },
+    empty_approvals_all_permit: {
+      id: 'Belum ada pengajuan izin atau sakit di perusahaan mana pun.',
+      en: 'No permit or sick requests in any company yet.',
+    },
+    empty_approvals_filtered: {
+      id: 'Tidak ada pengajuan dengan status ini di perusahaan mana pun. Ubah filter status di atas.',
+      en: 'No requests with this status in any company. Change the status filter above.',
+    },
     empty_users: { id: 'Belum ada karyawan terdaftar di perusahaan ini.', en: 'No employees registered in this company.' },
     empty_leaves: { id: 'Belum ada pengajuan cuti atau izin.', en: 'No leave or permit requests yet.' },
     ro_original_date: { id: 'Tanggal Asli', en: 'Original Date' },
@@ -1150,20 +1170,24 @@ export class ViewController {
     const user = await this.requireUser(req, res);
     if (!user) return res as any;
     const locale = this.locale(req);
-    const status = { in: ['pending', 'waiting_hr'] as any };
+    const queueStatus = { in: ['pending', 'waiting_hr'] as any };
     const sup = user.role === 'SUPERVISOR' ? { user: { directLeadId: user.id } } : {};
     // platform admin audits the whole ledger, so the open-queue filter is dropped for them
-    const allStatuses = kind === 'replacement' && user.role === 'PLATFORM_ADMIN';
+    const allStatuses = user.role === 'PLATFORM_ADMIN';
     const decidable = user.role === 'SUPERVISOR' ? ['pending'] : ['pending', 'waiting_hr'];
+    const statusPool = kind === 'replacement' ? RO_STATUSES : LEAVE_STATUSES;
     const wanted = String(req.query.status ?? '');
-    const statusFilter = allStatuses && (RO_STATUSES as readonly string[]).includes(wanted) ? wanted : '';
+    const statusFilter = allStatuses && (statusPool as readonly string[]).includes(wanted) ? wanted : '';
+    const scopeStatus = allStatuses ? (statusFilter ? { in: [statusFilter] } : {}) : queueStatus;
+    // ledger view reads newest first; the queue keeps oldest-first so the FIFO head stays on top
+    const orderBy = allStatuses ? { createdAt: 'desc' as const } : { createdAt: 'asc' as const };
     let rows: any[] = [];
     let total = 0;
     if (kind === 'replacement') {
       // drafts are admin-created and not yet submitted, but the queue must show them
       const where = this.tenantWhere(user, {
         deletedAt: null,
-        status: allStatuses ? (statusFilter ? { in: [statusFilter] } : {}) : { in: ['draft', 'pending', 'waiting_hr'] },
+        status: allStatuses ? scopeStatus : { in: ['draft', 'pending', 'waiting_hr'] },
         ...sup,
       });
       const [data, count] = await this.prisma.$transaction([
@@ -1173,7 +1197,7 @@ export class ViewController {
             user: { select: { namaLengkap: true } },
             company: { select: { name: true } },
           },
-          orderBy: { createdAt: 'asc' },
+          orderBy,
           take: 200,
         }),
         this.prisma.replacementOff.count({ where }),
@@ -1196,7 +1220,7 @@ export class ViewController {
           : { category: { in: ['PERMIT', 'SICK'] as any } };
       const where = this.tenantWhere(user, {
         deletedAt: null,
-        status,
+        status: scopeStatus,
         ...sup,
         leaveType,
       });
@@ -1208,7 +1232,7 @@ export class ViewController {
             user: { select: { namaLengkap: true } },
             company: { select: { name: true } },
           },
-          orderBy: { createdAt: 'asc' },
+          orderBy,
           take: 200,
         }),
         this.prisma.leaveRequest.count({ where }),
@@ -1235,11 +1259,12 @@ export class ViewController {
       allStatuses,
       decidable,
       statusFilter,
-      statusOptions: allStatuses ? RO_STATUSES : null,
+      statusOptions: allStatuses ? statusPool : null,
       canAdd: kind === 'replacement' && (user.role === 'PLATFORM_ADMIN' || user.role === 'COMPANY_ADMIN'),
       created: kind === 'replacement' && req.query.ok === 'create',
       error: req.query.error ? t(String(req.query.error), locale as any) : null,
       page: `approvals/${slug}`,
+      slug,
     });
   }
 
@@ -1256,7 +1281,8 @@ export class ViewController {
       (decision === 'rejected' ? tr('reject_default_comment', this.locale(req)) : '');
     const slugBack = kind === 'leave' ? 'leaves' : kind === 'permit' ? 'permit' : 'replacement-off';
     const backStatus = String(body?.status ?? '');
-    const qs = (RO_STATUSES as readonly string[]).includes(backStatus) ? `&status=${backStatus}` : '';
+    const backPool = kind === 'replacement' ? RO_STATUSES : LEAVE_STATUSES;
+    const qs = (backPool as readonly string[]).includes(backStatus) ? `&status=${backStatus}` : '';
     try {
       await this.approvals.transition(
         kind === 'replacement' ? 'REPLACEMENT_OFF' : 'LEAVE',

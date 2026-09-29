@@ -8,9 +8,21 @@
   var decidableStatuses = (typeof decidable !== 'undefined' && decidable) ? decidable : ['pending', 'waiting_hr'];
   function isDecidable(s){ return decidableStatuses.indexOf(s) >= 0; }
   var waiting = rows.filter(function (r) { return isDecidable(r.status); }).length;
+  var emptyKey = statusFilter ? 'empty_approvals_filtered'
+    : !allStatuses ? 'empty_approvals'
+    : kind === 'leave' ? 'empty_approvals_all_leaves'
+    : kind === 'permit' ? 'empty_approvals_all_permit'
+    : 'empty_approvals_all';
 %>
 <style>
   .alert.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+  dialog.dlg { width: min(440px, 92vw); padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  dialog.dlg::backdrop { background: rgba(15,23,42,.45); }
+  .dlg h2 { margin: 0 0 .3rem; font-size: 1.05rem; }
+  .dlg-sub { margin: 0 0 .9rem; padding-bottom: .7rem; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: .82rem; }
+  .dlg-label { display: block; margin-bottom: .3rem; font-size: .8rem; font-weight: 600; color: var(--label); }
+  .dlg textarea { width: 100%; min-height: 84px; resize: vertical; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
 </style>
 <div class="page-head">
   <div><h1><%= kind === 'leave' ? t('nav_apv_leaves') : kind === 'permit' ? t('nav_apv_permit') : t('nav_apv_replacement') %></h1><p class="sub"><% if (allStatuses) { %><%= t('apv_all_scope') %><% } else { %><%= waiting %> <%= t('apv_awaiting') %><% } %></p></div>
@@ -20,17 +32,17 @@
 <% if (typeof created !== 'undefined' && created) { %><div class="alert ok"><%= t('ro_created_msg') %></div><% } %>
 <div class="card">
   <% if (statusOptions) { %>
-  <form method="get" action="/ui/approvals/replacement-off" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
+  <form method="get" action="/ui/approvals/<%= slug %>" class="filter-bar" style="border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;">
     <div class="field"><%= t('status') %><select name="status">
       <option value="" <%= !statusFilter ? 'selected' : '' %>><%= t('all') %></option>
       <% statusOptions.forEach(function(v) { %><option value="<%= v %>" <%= statusFilter === v ? 'selected' : '' %>><%= stLabel(v) %></option><% }) %>
     </select></div>
     <button class="btn primary" type="submit"><%= t('filter') %></button>
-    <a class="btn" href="/ui/approvals/replacement-off"><%= t('reset') %></a>
+    <a class="btn" href="/ui/approvals/<%= slug %>"><%= t('reset') %></a>
   </form>
   <% } %>
   <div class="table-toolbar"><b><%= allStatuses ? t('apv_all_records') : t('apv_queue') %></b><span class="count"><%= rows.length %><% if (total > rows.length) { %> / <%= total %><% } %> <%= t('rows_label') %></span></div>
-  <% if (!rows.length) { %><div class="empty"><%= allStatuses ? t('empty_approvals_all') : t('empty_approvals') %></div><% } else { %>
+  <% if (!rows.length) { %><div class="empty"><%= t(emptyKey) %></div><% } else { %>
   <div class="table-wrap"><table class="tbl">
     <thead><tr><th><%= t('employee') %></th><th><%= t('company_label') %></th><th><%= t('name') %></th><th><%= t('date') %></th><th><%= t('status') %></th><th><%= t('reason') %></th><th style="text-align:center;"><%= t('actions') %></th></tr></thead>
     <tbody>
@@ -45,7 +57,7 @@
           <td><div class="row-actions">
             <% if (!isDecidable(r.status)) { %>-<% } else { %>
             <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="status" value="<%= statusFilter %>" /><input type="hidden" name="decision" value="approved" /><button class="small ok" type="submit"><%= t('approve') %></button></form>
-            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="status" value="<%= statusFilter %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="<%= t('reject_default_comment') %>" /><button class="small no" type="submit"><%= t('reject') %></button></form>
+            <form class="inline" method="post" action="/ui/approvals/<%= r.id %>/decide" data-reject data-target="<%= r.nama_lengkap %> &middot; <%= r.jenis %> &middot; <%= r.start_date %> &rarr; <%= r.end_date %>"><input type="hidden" name="kind" value="<%= kind %>" /><input type="hidden" name="status" value="<%= statusFilter %>" /><input type="hidden" name="decision" value="rejected" /><input type="hidden" name="comment" value="" /><button class="small no" type="submit"><%= t('reject') %></button></form>
             <% } %>
           </div></td>
         </tr>
@@ -54,4 +66,44 @@
   </table></div>
 <% } %>
 </div>
+<dialog class="dlg" id="rejectDlg" aria-labelledby="rejectDlgTitle">
+  <form method="dialog" id="rejectForm">
+    <h2 id="rejectDlgTitle"><%= t('reject_title') %></h2>
+    <p class="dlg-sub" id="rejectTarget"></p>
+    <label class="dlg-label" for="rejectReason"><%= t('reject_reason_label') %></label>
+    <textarea id="rejectReason" name="comment" rows="3" minlength="5" maxlength="500" required></textarea>
+    <p class="help"><%= t('reject_reason_help') %></p>
+    <div class="dlg-actions">
+      <button type="submit" value="cancel" class="btn" formnovalidate><%= t('cancel') %></button>
+      <button type="button" class="btn danger" id="rejectConfirm"><%= t('reject_confirm') %></button>
+    </div>
+  </form>
+</dialog>
+<script>
+(function () {
+  var dlg = document.getElementById('rejectDlg');
+  var reason = document.getElementById('rejectReason');
+  var pending = null;
+  if (!dlg || !reason) return;
+
+  document.querySelectorAll('form[data-reject]').forEach(function (rowForm) {
+    rowForm.addEventListener('submit', function (e) {
+      if (!dlg.showModal) return;
+      e.preventDefault();
+      pending = rowForm;
+      document.getElementById('rejectTarget').textContent = rowForm.getAttribute('data-target') || '';
+      reason.value = '';
+      dlg.showModal();
+      reason.focus();
+    });
+  });
+
+  document.getElementById('rejectConfirm').addEventListener('click', function () {
+    if (!pending || !reason.reportValidity()) return;
+    pending.querySelector('[name="comment"]').value = reason.value.trim();
+    pending.submit();
+    pending = null;
+  });
+})();
+</script>
 <%- include('partials/footer') %>
